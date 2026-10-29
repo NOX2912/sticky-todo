@@ -139,7 +139,7 @@ struct NoteView: View {
                 .font(s.font.font(size: s.fontSize))
                 .foregroundStyle(textColor)
                 .background(alignment: .topLeading) {
-                    if draft.isEmpty {
+                    if draft.isEmpty && s.showPlaceholder {
                         Text("Neues To-Do")
                             .font(s.font.font(size: s.fontSize))
                             .foregroundStyle(textColor.opacity(0.4))

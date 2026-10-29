@@ -250,11 +250,12 @@ struct NoteSettings: Equatable {
     var layer = WindowLayer.desktop
     var opacity: Double = 1
     var showWindowButtons = true
+    var showPlaceholder = true
 }
 
 extension NoteSettings: Codable {
     private enum CodingKeys: String, CodingKey {
-        case theme, title, font, fontSize, padding, layer, opacity, showWindowButtons
+        case theme, title, font, fontSize, padding, layer, opacity, showWindowButtons, showPlaceholder
     }
 
     init(from decoder: Decoder) throws {
@@ -268,6 +269,7 @@ extension NoteSettings: Codable {
         layer = c.value(.layer) ?? d.layer
         opacity = c.value(.opacity) ?? d.opacity
         showWindowButtons = c.value(.showWindowButtons) ?? d.showWindowButtons
+        showPlaceholder = c.value(.showPlaceholder) ?? d.showPlaceholder
     }
 }
 

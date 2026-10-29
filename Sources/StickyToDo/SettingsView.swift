@@ -70,6 +70,7 @@ struct SettingsView: View {
 
             Section("Text") {
                 TextField("Überschrift", text: $settings.settings.title)
+                Toggle("„Neues To-Do“ anzeigen", isOn: $settings.settings.showPlaceholder)
                 picker("Schrift", $settings.settings.font)
                 Slider(value: $settings.settings.fontSize, in: 13...32) {
                     Text("Schriftgröße")
