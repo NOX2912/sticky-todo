@@ -40,6 +40,10 @@ final class TodoStore: ObservableObject {
         items.removeAll { $0.id == id }
     }
 
+    func toggle(_ id: UUID) {
+        if let index = items.firstIndex(where: { $0.id == id }) { items[index].done.toggle() }
+    }
+
     func removeDone() {
         items.removeAll(where: \.done)
     }

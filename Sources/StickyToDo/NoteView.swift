@@ -65,8 +65,8 @@ struct NoteView: View {
     private var list: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: rowSpacing * 2) {
-                ForEach($store.items) { $item in
-                    row($item)
+                ForEach(store.items) { item in
+                    row(item)
                 }
                 newRow
             }
@@ -89,33 +89,33 @@ struct NoteView: View {
         }
     }
 
-    private func row(_ item: Binding<TodoItem>) -> some View {
-        let id = item.wrappedValue.id
+    private func row(_ item: TodoItem) -> some View {
+        let id = item.id
         return HStack(alignment: .top, spacing: s.fontSize * 0.5) {
             Button {
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.6)) { item.wrappedValue.done.toggle() }
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.6)) { store.toggle(id) }
             } label: {
-                CheckCircle(done: item.wrappedValue.done, color: checkColor, size: circleSize)
+                CheckCircle(done: item.done, color: checkColor, size: circleSize)
             }
             .buttonStyle(.plain)
             .padding(.top, circleTop)
 
             // Erledigte To-Dos bleiben bewusst unverändert (kein Durchstreichen).
-            TextField("", text: item.text, axis: .vertical)
+            TextField("", text: text(of: id), axis: .vertical)
                 .textFieldStyle(.plain)
                 .font(s.font.font(size: s.fontSize))
                 .foregroundStyle(textColor)
                 .focused($focus, equals: .item(id))
                 .onSubmit { finishEditing(id) }
-                .onChange(of: item.wrappedValue.text) { _, text in
+                .onChange(of: item.text) { _, newText in
                     // To-Dos sind einzeilig; ein Zeilenumbruch beendet die Bearbeitung.
-                    guard text.contains(where: \.isNewline) else { return }
-                    item.wrappedValue.text = text.filter { !$0.isNewline }
+                    guard newText.contains(where: \.isNewline) else { return }
+                    text(of: id).wrappedValue = newText.filter { !$0.isNewline }
                     finishEditing(id)
                 }
         }
         .contextMenu {
-            Button(item.wrappedValue.done ? "Als offen markieren" : "Abhaken") { item.wrappedValue.done.toggle() }
+            Button(item.done ? "Als offen markieren" : "Abhaken") { store.toggle(id) }
             Button("Neues To-Do darunter") { insert(below: id) }
             Button("Löschen", role: .destructive) { store.remove(id) }
             Divider()
@@ -189,6 +189,16 @@ struct NoteView: View {
             guard let editor = NSApp.keyWindow?.firstResponder as? NSTextView else { return }
             editor.setSelectedRange(NSRange(location: (editor.string as NSString).length, length: 0))
         }
+    }
+
+    /// Bindung über die ID statt über die Position: Ein gerade bearbeitetes To-Do kann gelöscht werden,
+    /// während macOS das Textfeld noch abschließt – ein Positions-Index würde dann ins Leere greifen und abstürzen.
+    private func text(of id: UUID) -> Binding<String> {
+        Binding(
+            get: { store.items.first(where: { $0.id == id })?.text ?? "" },
+            set: { text in
+                if let index = store.items.firstIndex(where: { $0.id == id }) { store.items[index].text = text }
+            })
     }
 
     private func isEmpty(_ id: UUID) -> Bool {
