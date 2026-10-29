@@ -73,9 +73,11 @@ struct NoteView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollIndicators(.never)
-        // Sonst fokussiert AppKit das erste To-Do und markiert dessen Text komplett.
-        .defaultFocus($focus, .new)
         .onExitCommand { focus = nil }
+        .onChange(of: focus) { old, _ in
+            // Leer gelassene To-Dos verschwinden, sobald man woanders hinklickt.
+            if case .item(let id)? = old, isEmpty(id) { store.remove(id) }
+        }
     }
 
     private func row(_ item: Binding<TodoItem>) -> some View {
@@ -103,14 +105,16 @@ struct NoteView: View {
                     finishEditing(id)
                 }
                 .onKeyPress(.delete) {
-                    guard item.wrappedValue.text.isEmpty else { return .ignored }
+                    guard item.wrappedValue.text.isEmpty,
+                          let index = store.items.firstIndex(where: { $0.id == id }) else { return .ignored }
                     store.remove(id)
-                    focus = .new
+                    focus = index > 0 ? .item(store.items[index - 1].id) : .new
                     return .handled
                 }
         }
         .contextMenu {
             Button(item.wrappedValue.done ? "Als offen markieren" : "Abhaken") { item.wrappedValue.done.toggle() }
+            Button("Neues To-Do darunter") { insert(below: id) }
             Button("Löschen", role: .destructive) { store.remove(id) }
             Divider()
             noteMenu
@@ -155,11 +159,25 @@ struct NoteView: View {
         Button("Einstellungen …", action: openSettings)
     }
 
+    /// Enter in einem To-Do legt darunter ein neues an; Enter in einem leeren beendet die Eingabe.
     private func finishEditing(_ id: UUID) {
-        if store.items.first(where: { $0.id == id })?.text.trimmingCharacters(in: .whitespaces).isEmpty == true {
+        if isEmpty(id) {
             store.remove(id)
+            focus = .new
+        } else {
+            insert(below: id)
         }
-        focus = .new
+    }
+
+    private func insert(below id: UUID) {
+        guard let index = store.items.firstIndex(where: { $0.id == id }) else { return }
+        let item = TodoItem(text: "")
+        store.items.insert(item, at: index + 1)
+        DispatchQueue.main.async { focus = .item(item.id) }
+    }
+
+    private func isEmpty(_ id: UUID) -> Bool {
+        store.items.first(where: { $0.id == id })?.text.trimmingCharacters(in: .whitespaces).isEmpty == true
     }
 
     private func addDraft() {

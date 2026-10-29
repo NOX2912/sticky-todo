@@ -62,6 +62,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }))
         host.sizingOptions = []
         window.contentView = host
+        // Sonst macht AppKit beim Aktivieren das erste To-Do zum Eingabefeld und markiert dessen ganzen Text.
+        window.initialFirstResponder = host
 
         if !window.setFrameUsingName("NoteWindow"), let screen = NSScreen.main?.visibleFrame {
             window.setFrameOrigin(NSPoint(x: screen.maxX - window.frame.width - 40,
