@@ -131,6 +131,7 @@ struct NoteView: View {
                 .frame(width: circleSize, height: circleSize)
                 .overlay(Circle().strokeBorder(checkColor.opacity(0.45), style: StrokeStyle(lineWidth: 1.5, dash: [3, 3])))
                 .padding(.top, circleTop)
+                .opacity(s.showPlaceholder || focus == .new || !draft.isEmpty ? 1 : 0)
                 .onTapGesture { focus = .new }
 
             // Eigener Platzhalter, weil der System-Platzhalter im Dark Mode fast weiß ist.
