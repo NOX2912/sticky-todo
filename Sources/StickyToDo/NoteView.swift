@@ -74,6 +74,15 @@ struct NoteView: View {
         }
         .scrollIndicators(.never)
         .onExitCommand { focus = nil }
+        .onAppear {
+            // Das Textfeld schluckt Backspace, daher auf App-Ebene abfangen.
+            NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                guard event.keyCode == 51, case .item(let id)? = focus,
+                      store.items.first(where: { $0.id == id })?.text.isEmpty == true else { return event }
+                deleteEmpty(id)
+                return nil
+            }
+        }
         .onChange(of: focus) { old, _ in
             // Leer gelassene To-Dos verschwinden, sobald man woanders hinklickt.
             if case .item(let id)? = old, isEmpty(id) { store.remove(id) }
@@ -103,13 +112,6 @@ struct NoteView: View {
                     guard text.contains(where: \.isNewline) else { return }
                     item.wrappedValue.text = text.filter { !$0.isNewline }
                     finishEditing(id)
-                }
-                .onKeyPress(.delete) {
-                    guard item.wrappedValue.text.isEmpty,
-                          let index = store.items.firstIndex(where: { $0.id == id }) else { return .ignored }
-                    store.remove(id)
-                    focus = index > 0 ? .item(store.items[index - 1].id) : .new
-                    return .handled
                 }
         }
         .contextMenu {
@@ -174,6 +176,19 @@ struct NoteView: View {
         let item = TodoItem(text: "")
         store.items.insert(item, at: index + 1)
         DispatchQueue.main.async { focus = .item(item.id) }
+    }
+
+    /// Backspace in einem leeren To-Do: löschen und mit dem Cursor ans Ende des vorherigen springen.
+    private func deleteEmpty(_ id: UUID) {
+        guard let index = store.items.firstIndex(where: { $0.id == id }) else { return }
+        store.remove(id)
+        guard index > 0 else { focus = .new; return }
+        focus = .item(store.items[index - 1].id)
+        // Beim Fokussieren markiert macOS den ganzen Text; das nächste Backspace würde sonst alles löschen.
+        DispatchQueue.main.async {
+            guard let editor = NSApp.keyWindow?.firstResponder as? NSTextView else { return }
+            editor.setSelectedRange(NSRange(location: (editor.string as NSString).length, length: 0))
+        }
     }
 
     private func isEmpty(_ id: UUID) -> Bool {
