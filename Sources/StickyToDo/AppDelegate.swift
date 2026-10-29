@@ -18,6 +18,7 @@ enum StickyToDoApp {
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let store = TodoStore()
     private let settings = SettingsStore()
+    private let updater = Updater()
     private var noteWindow: NSWindow!
     private var settingsWindow: NSWindow?
     private var statusItem: NSStatusItem!
@@ -30,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settings.$settings
             .sink { [weak self] in self?.apply($0) }
             .store(in: &cancellables)
+        updater.start()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -55,7 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.standardWindowButton(.zoomButton)?.isEnabled = false
         window.delegate = self
 
-        let host = NSHostingView(rootView: NoteView(store: store, settings: settings, openSettings: { [weak self] in
+        let host = NSHostingView(rootView: NoteView(store: store, settings: settings, updater: updater, openSettings: { [weak self] in
             self?.openSettings()
         }))
         host.sizingOptions = []
@@ -101,6 +103,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         store.removeDone()
     }
 
+    @objc private func checkForUpdates() {
+        Task {
+            await updater.check()
+            NSApp.activate()
+            let alert = NSAlert()
+            if let release = updater.available {
+                alert.messageText = "Version \(release.version) ist verfügbar"
+                alert.informativeText = "Du hast Version \(updater.current)."
+                alert.addButton(withTitle: "Installieren")
+                alert.addButton(withTitle: "Später")
+                if alert.runModal() == .alertFirstButtonReturn { updater.install() }
+            } else {
+                alert.messageText = "Du hast die neueste Version (\(updater.current))."
+                alert.runModal()
+            }
+        }
+    }
+
     // MARK: - Einstellungen
 
     @objc private func openSettings() {
@@ -130,6 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         menu.addItem(item("Erledigte entfernen", #selector(removeDone)))
         menu.addItem(.separator())
         menu.addItem(item("Einstellungen …", #selector(openSettings), key: ","))
+        menu.addItem(item("Nach Updates suchen …", #selector(checkForUpdates)))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Beenden", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu

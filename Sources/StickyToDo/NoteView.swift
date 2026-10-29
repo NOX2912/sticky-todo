@@ -3,6 +3,7 @@ import SwiftUI
 struct NoteView: View {
     @ObservedObject var store: TodoStore
     @ObservedObject var settings: SettingsStore
+    @ObservedObject var updater: Updater
     var openSettings: () -> Void
 
     @State private var draft = ""
@@ -45,6 +46,15 @@ struct NoteView: View {
                         .lineLimit(1)
                 }
                 list
+                if let release = updater.available {
+                    Button(updater.installing ? "Update wird installiert …" : "Update auf \(release.version) installieren") {
+                        updater.install()
+                    }
+                    .buttonStyle(.plain)
+                    .font(s.font.font(size: s.fontSize * 0.7, bold: true))
+                    .foregroundStyle(checkColor)
+                    .disabled(updater.installing)
+                }
             }
             .padding(contentInsets)
         }

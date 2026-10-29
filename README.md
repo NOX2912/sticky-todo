@@ -16,6 +16,10 @@ cd sticky-todo
 
 The app is not notarized. On first launch, allow it under **System Settings → Privacy & Security → Open Anyway**.
 
+## Updates
+
+`./build.sh release 1.1` publishes a GitHub release. Installed apps pick it up and offer the update in the note.
+
 ## License
 
 [MIT](LICENSE)
