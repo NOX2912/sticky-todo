@@ -20,6 +20,10 @@ The app is not notarized. On first launch, allow it under **System Settings → 
 
 `./build.sh release 1.1` publishes a GitHub release. Installed apps pick it up and offer the update in the note.
 
+## Feedback
+
+Found a bug or have an idea? Use **Report a bug / Suggest a feature** in the menu bar icon or the note's context menu, or [open an issue](https://github.com/NOX2912/sticky-todo/issues/new/choose) directly. A GitHub account is required.
+
 ## License
 
 [MIT](LICENSE)

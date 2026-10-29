@@ -141,6 +141,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settingsWindow?.makeKeyAndOrderFront(nil)
     }
 
+    @objc private func reportBug() { Feedback.bug.open() }
+    @objc private func requestFeature() { Feedback.feature.open() }
+
     // MARK: - Menüs
 
     private func setUpStatusItem() {
@@ -153,6 +156,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         menu.addItem(.separator())
         menu.addItem(item("Einstellungen …", #selector(openSettings), key: ","))
         menu.addItem(item("Nach Updates suchen …", #selector(checkForUpdates)))
+        menu.addItem(item("Fehler melden …", #selector(reportBug)))
+        menu.addItem(item("Funktion vorschlagen …", #selector(requestFeature)))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Beenden", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu

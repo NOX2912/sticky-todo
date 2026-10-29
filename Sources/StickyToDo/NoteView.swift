@@ -159,6 +159,9 @@ struct NoteView: View {
         Button("Erledigte entfernen") { withAnimation { store.removeDone() } }
             .disabled(!store.items.contains(where: \.done))
         Button("Einstellungen …", action: openSettings)
+        Divider()
+        Button("Fehler melden …") { Feedback.bug.open() }
+        Button("Funktion vorschlagen …") { Feedback.feature.open() }
     }
 
     /// Enter in einem To-Do legt darunter ein neues an; Enter in einem leeren beendet die Eingabe.
