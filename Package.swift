@@ -5,6 +5,7 @@ let package = Package(
     name: "StickyToDo",
     platforms: [.macOS(.v14)],
     targets: [
-        .executableTarget(name: "StickyToDo", path: "Sources/StickyToDo")
+        .executableTarget(name: "StickyToDo", path: "Sources/StickyToDo"),
+        .testTarget(name: "StickyToDoTests", dependencies: ["StickyToDo"], path: "Tests/StickyToDoTests"),
     ]
 )

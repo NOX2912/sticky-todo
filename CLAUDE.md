@@ -6,14 +6,26 @@ macOS-Sticky-Note-To-Do-App (SwiftUI + AppKit), Swift Package ohne Xcode-Projekt
 
 ```bash
 swift build                 # nur kompilieren
+swift test                  # Tests (Swift Testing), vor jedem Release automatisch
 ./build.sh                  # baut "build/To Do.app"
 ./build.sh install          # baut und kopiert nach ~/Applications
-./build.sh release 1.5      # Version setzen, ALLES committen (-am), pushen, GitHub-Release mit build/ToDo.zip
+./build.sh beta 1.5         # wie release, aber als Pre-Release: der Auto-Updater sieht es nicht
+./build.sh promote 1.5      # Pre-Release zum neuesten Release machen, ab dann Auto-Update für alle
+./build.sh release 1.5      # Version setzen, testen, ALLES committen (-am), pushen, GitHub-Release mit build/ToDo.zip
 ```
 
-- Releases nur nach ausdrücklicher Freigabe des Users (öffentlich, landet per Auto-Update bei anderen).
+- Releases und Betas nur nach ausdrücklicher Freigabe des Users (öffentlich, ein Release landet per Auto-Update bei anderen).
 - Danach `./build.sh install`, damit die lokale App dieselbe Version hat.
-- Der In-App-Updater (`Updater.swift`) liest `releases/latest` von `NOX2912/sticky-todo` und braucht ein `.zip`-Asset und einen Tag `vX.Y`.
+- Der In-App-Updater (`Updater.swift`) liest `releases/latest` von `NOX2912/sticky-todo` und braucht ein `.zip`-Asset und einen Tag `vX.Y`. Pre-Releases zählen dort nicht als `latest`.
+- **Kaputtes Release zurückholen:** Der Updater installiert nur höhere Versionen. Also den Code des letzten guten Tags auschecken (`git checkout vX.Y -- Sources Package.swift`) und als nächste Version veröffentlichen.
+
+## Vor „fertig“ prüfen
+
+- `swift build` ohne Warnungen und `swift test` grün.
+- UI-Änderungen in der echten App ansehen (siehe unten) und das Ergebnis zeigen, nicht nur behaupten.
+- Vor dem Commit den Diff mit `/code-review` oder einem Subagenten mit frischem Kontext prüfen. Höchstens drei Runden, danach nur noch den neuen Diff.
+- Gründlich prüfen bei: `Updater.swift`, `build.sh`, `Info.plist`, den Codable-Typen in `Theme.swift`/`Models.swift`. Neue Felder dort bekommen einen Fall in `Tests/StickyToDoTests`.
+- Findet ein Review dasselbe Problem zweimal: als Regel unter „Nicht kaputt machen“ oder als Test festhalten.
 
 ## Nicht kaputt machen
 

@@ -1,14 +1,24 @@
 #!/bin/bash
 # ./build.sh                  baut "build/To Do.app"
 # ./build.sh install          baut und kopiert die App nach ~/Applications
-# ./build.sh release 1.1      setzt die Version, committet, pusht und veröffentlicht ein GitHub-Release
+# ./build.sh beta 1.1         wie release, aber als Pre-Release: der In-App-Updater sieht es nicht
+# ./build.sh promote 1.1      macht aus dem Pre-Release das neueste Release, ab dann kommt das Update bei allen an
+# ./build.sh release 1.1      setzt die Version, testet, committet, pusht und veröffentlicht ein GitHub-Release
 set -euo pipefail
 cd "$(dirname "$0")"
 
-if [ "${1:-}" = "release" ]; then
-    VERSION="${2:?Version fehlt, z. B.: ./build.sh release 1.1}"
+case "${1:-}" in
+release | beta)
+    VERSION="${2:?Version fehlt, z. B.: ./build.sh $1 1.1}"
+    swift test
     /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" -c "Set :CFBundleVersion $VERSION" Resources/Info.plist
-fi
+    ;;
+promote)
+    VERSION="${2:?Version fehlt, z. B.: ./build.sh promote 1.1}"
+    gh release edit "v$VERSION" --prerelease=false --latest
+    exit
+    ;;
+esac
 
 swift build -c release
 APP="build/To Do.app"
@@ -27,10 +37,12 @@ install)
     cp -R "$APP" ~/Applications/
     echo "Installiert: ~/Applications/To Do.app"
     ;;
-release)
+release | beta)
     ditto -c -k --keepParent "$APP" build/ToDo.zip
     git commit -qam "Version $VERSION"
     git push -q
-    gh release create "v$VERSION" build/ToDo.zip --title "$VERSION" --generate-notes
+    PRERELEASE=""
+    if [ "$1" = beta ]; then PRERELEASE="--prerelease"; fi
+    gh release create "v$VERSION" build/ToDo.zip --title "$VERSION" --generate-notes ${PRERELEASE:+"$PRERELEASE"}
     ;;
 esac
