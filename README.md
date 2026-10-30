@@ -2,6 +2,8 @@
 
 A sticky-note to-do list for the macOS desktop. It sits behind your windows like a widget, but you can type into it directly.
 
+![Sticky ToDo: typing a to-do, checking it off and switching themes](docs/demo.gif)
+
 Includes 14 themes and lets you customize the background, card, decorations, font and colors. You can also use your own background image.
 
 ## Build
