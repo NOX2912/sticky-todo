@@ -4,6 +4,8 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @ObservedObject var settings: SettingsStore
+    /// Erste Notiz; die Sprache gilt für alle Notizen und liegt dort.
+    @ObservedObject var main: SettingsStore
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var error: String?
 
@@ -80,7 +82,7 @@ struct SettingsView: View {
             }
 
             Section(tr("Fenster", "Window")) {
-                picker("Sprache / Language", $settings.settings.language)
+                picker("Sprache / Language", $main.settings.language)
                 picker(tr("Ebene", "Layer"), $settings.settings.layer)
                 Slider(value: $settings.settings.padding, in: 8...60) { Text(tr("Innenabstand", "Padding")) }
                 Slider(value: $settings.settings.opacity, in: 0.4...1) { Text(tr("Deckkraft", "Opacity")) }

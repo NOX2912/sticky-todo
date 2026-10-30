@@ -1,15 +1,22 @@
 import SwiftUI
 
 struct NoteView: View {
+    let id: NoteID
     @ObservedObject var store: TodoStore
     @ObservedObject var settings: SettingsStore
     @ObservedObject var updater: Updater
     var openSettings: () -> Void
+    var newNote: () -> Void
+    /// Fehlt bei der ersten Notiz, die bleibt immer.
+    var deleteNote: (() -> Void)?
 
     @State private var draft = ""
+    @State private var editingTitle = false
+    @State private var keyMonitor: Any?
     @FocusState private var focus: Field?
 
     private enum Field: Hashable {
+        case title
         case item(UUID)
         case new
     }
@@ -39,11 +46,20 @@ struct NoteView: View {
                 .equatable()
 
             VStack(alignment: .leading, spacing: s.fontSize * 0.45) {
-                if !s.title.isEmpty {
+                if editingTitle {
+                    TextField("", text: $settings.settings.title)
+                        .textFieldStyle(.plain)
+                        .font(s.font.font(size: s.fontSize * 1.6, bold: true))
+                        .foregroundStyle(textColor)
+                        .focused($focus, equals: .title)
+                        .onSubmit { focus = .new }
+                        .onExitCommand { focus = nil }
+                } else if !s.title.isEmpty {
                     Text(s.title)
                         .font(s.font.font(size: s.fontSize * 1.6, bold: true))
                         .foregroundStyle(textColor)
                         .lineLimit(1)
+                        .onTapGesture(count: 2, perform: editTitle)
                 }
                 list
                 if let release = updater.available {
@@ -76,16 +92,24 @@ struct NoteView: View {
         .onExitCommand { focus = nil }
         .onAppear {
             // Das Textfeld schluckt Backspace, daher auf App-Ebene abfangen.
-            NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-                guard event.keyCode == 51, case .item(let id)? = focus,
-                      store.items.first(where: { $0.id == id })?.text.isEmpty == true else { return event }
-                deleteEmpty(id)
+            // Der Monitor sieht die Tasten aller Notizen, deshalb nur auf das eigene Fenster reagieren.
+            if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+            keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                guard event.keyCode == 51, event.window?.identifier?.rawValue == id.windowName,
+                      case .item(let item)? = focus,
+                      store.items.first(where: { $0.id == item })?.text.isEmpty == true else { return event }
+                deleteEmpty(item)
                 return nil
             }
+        }
+        .onDisappear {
+            if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+            keyMonitor = nil
         }
         .onChange(of: focus) { old, _ in
             // Leer gelassene To-Dos verschwinden, sobald man woanders hinklickt.
             if case .item(let id)? = old, isEmpty(id) { store.remove(id) }
+            if old == .title { editingTitle = false }
         }
     }
 
@@ -159,10 +183,21 @@ struct NoteView: View {
     @ViewBuilder private var noteMenu: some View {
         Button(tr("Erledigte entfernen", "Remove completed")) { withAnimation { store.removeDone() } }
             .disabled(!store.items.contains(where: \.done))
+        Button(tr("Überschrift ändern", "Edit title"), action: editTitle)
         Button(tr("Einstellungen …", "Settings …"), action: openSettings)
+        Divider()
+        Button(tr("Neue Notiz", "New note"), action: newNote)
+        if let deleteNote {
+            Button(tr("Notiz löschen …", "Delete note …"), role: .destructive, action: deleteNote)
+        }
         Divider()
         Button(tr("Fehler melden …", "Report a bug …")) { Feedback.bug.open() }
         Button(tr("Funktion vorschlagen …", "Suggest a feature …")) { Feedback.feature.open() }
+    }
+
+    private func editTitle() {
+        editingTitle = true
+        DispatchQueue.main.async { focus = .title }
     }
 
     /// Enter in einem To-Do legt darunter ein neues an; Enter in einem leeren beendet die Eingabe.

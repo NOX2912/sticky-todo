@@ -178,6 +178,16 @@ struct ThemePreset: Identifiable {
         self.theme = theme
     }
 
+    /// Für eine neue Notiz das erste Theme, das noch keine andere Notiz trägt.
+    static func unused(by themes: [NoteTheme]) -> ThemePreset {
+        let used = themes.map { theme in
+            var theme = theme
+            theme.imagePath = nil
+            return theme
+        }
+        return all.first { !used.contains($0.theme) } ?? all[themes.count % all.count]
+    }
+
     static let all: [ThemePreset] = [
         .init("Lavendel", "Lavender", NoteTheme()),
         .init("Papier", "Paper", NoteTheme(

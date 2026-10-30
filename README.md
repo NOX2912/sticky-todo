@@ -4,7 +4,7 @@ A sticky-note to-do list for the macOS desktop. It sits behind your windows like
 
 ![Sticky ToDo: typing a to-do, checking it off and switching themes](docs/demo.gif)
 
-Includes 14 themes and lets you customize the background, card, decorations, font and colors. You can also use your own background image. The interface is available in English and German (switch under **Settings → Window → Language**).
+Includes 14 themes and lets you customize the background, card, decorations, font and colors. You can also use your own background image. Need more than one list? **New note** (⌘N or the context menu) puts another note on the desktop with its own to-dos, theme and title. Double-click a title to rename it. The interface is available in English and German (switch under **Settings → Window → Language**).
 
 ## Download
 

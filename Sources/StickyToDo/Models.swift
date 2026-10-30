@@ -17,15 +17,33 @@ enum Storage {
     }()
 }
 
+/// Kennung einer Notiz. Die erste Notiz behält die Dateinamen und Schlüssel von Version 1.x,
+/// damit bestehende To-Dos, Einstellungen und die Fensterposition erhalten bleiben.
+struct NoteID: Hashable {
+    let uuid: UUID?
+
+    static let main = NoteID(uuid: nil)
+    static func new() -> NoteID { NoteID(uuid: UUID()) }
+
+    private var suffix: String { uuid.map { "-\($0.uuidString)" } ?? "" }
+    var todosFile: String { "todos\(suffix).json" }
+    var settingsKey: String { "settings\(suffix)" }
+    /// Name für die gespeicherte Fensterposition, zugleich Kennung des Fensters
+    var windowName: String { "NoteWindow\(suffix)" }
+}
+
 @MainActor
 final class TodoStore: ObservableObject {
     @Published var items: [TodoItem] = [] {
         didSet { save() }
     }
 
-    private let url = Storage.directory.appendingPathComponent("todos.json")
+    private let url: URL
+    /// Nach dem Löschen der Notiz nichts mehr schreiben, sonst entsteht die Datei beim Schließen des Fensters neu.
+    private var deleted = false
 
-    init() {
+    init(id: NoteID) {
+        url = Storage.directory.appendingPathComponent(id.todosFile)
         if let data = try? Data(contentsOf: url),
            let decoded = try? JSONDecoder().decode([TodoItem].self, from: data) {
             items = decoded
@@ -48,8 +66,13 @@ final class TodoStore: ObservableObject {
         items.removeAll(where: \.done)
     }
 
+    func deleteFile() {
+        deleted = true
+        try? FileManager.default.removeItem(at: url)
+    }
+
     private func save() {
-        guard let data = try? JSONEncoder().encode(items) else { return }
+        guard !deleted, let data = try? JSONEncoder().encode(items) else { return }
         try? data.write(to: url, options: .atomic)
     }
 }
@@ -58,7 +81,8 @@ final class TodoStore: ObservableObject {
 final class SettingsStore: ObservableObject {
     @Published var settings: NoteSettings {
         // Vor dem Veröffentlichen, damit alle Beobachter schon die neue Sprache sehen.
-        willSet { Language.current = newValue.language }
+        // Die Sprache gilt für die ganze App und kommt aus der ersten Notiz.
+        willSet { if id == .main { Language.current = newValue.language } }
         didSet {
             save()
             if oldValue.theme.imagePath != settings.theme.imagePath { loadImage() }
@@ -68,16 +92,18 @@ final class SettingsStore: ObservableObject {
     /// Zwischengespeichert, damit das Bild nicht bei jedem Tastendruck neu geladen wird.
     @Published private(set) var backgroundImage: NSImage?
 
-    private static let key = "settings"
+    let id: NoteID
+    private var deleted = false
 
-    init() {
-        if let data = UserDefaults.standard.data(forKey: Self.key),
+    init(id: NoteID) {
+        self.id = id
+        if let data = UserDefaults.standard.data(forKey: id.settingsKey),
            let decoded = try? JSONDecoder().decode(NoteSettings.self, from: data) {
             settings = decoded
         } else {
             settings = NoteSettings()
         }
-        Language.current = settings.language
+        if id == .main { Language.current = settings.language }
         loadImage()
     }
 
@@ -95,12 +121,18 @@ final class SettingsStore: ObservableObject {
         settings.theme.background = .image
     }
 
+    func deleteStored() {
+        deleted = true
+        UserDefaults.standard.removeObject(forKey: id.settingsKey)
+        if let image = settings.theme.imagePath { try? FileManager.default.removeItem(atPath: image) }
+    }
+
     private func loadImage() {
         backgroundImage = settings.theme.imagePath.flatMap(NSImage.init(contentsOfFile:))
     }
 
     private func save() {
-        guard let data = try? JSONEncoder().encode(settings) else { return }
-        UserDefaults.standard.set(data, forKey: Self.key)
+        guard !deleted, let data = try? JSONEncoder().encode(settings) else { return }
+        UserDefaults.standard.set(data, forKey: id.settingsKey)
     }
 }

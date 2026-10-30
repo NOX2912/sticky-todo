@@ -15,101 +15,110 @@ enum StickyToDoApp {
 }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
-    private let store = TodoStore()
-    private let settings = SettingsStore()
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let mainSettings = SettingsStore(id: .main)
     private let updater = Updater()
-    private var noteWindow: NSWindow!
-    private var settingsWindow: NSWindow?
+    private var notes: [NoteController] = []
+    /// Die zuletzt benutzte Notiz; Menüleisten-Befehle wirken auf sie.
+    private weak var activeNote: NoteController?
     private var statusItem: NSStatusItem!
     private var cancellables = Set<AnyCancellable>()
     private var menuLanguage: Language?
 
+    /// IDs der weiteren Notizen; die erste Notiz ist immer da.
+    private static let notesKey = "notes"
+
+    private var currentNote: NoteController { activeNote ?? notes[0] }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(systemSymbolName: "checklist", accessibilityDescription: "To Do")
-        setUpNoteWindow()
-        settings.$settings
+        addNote(mainSettings)
+        for uuid in (UserDefaults.standard.stringArray(forKey: Self.notesKey) ?? []).compactMap(UUID.init) {
+            addNote(SettingsStore(id: NoteID(uuid: uuid)))
+        }
+        mainSettings.$settings
             .sink { [weak self] in self?.apply($0) }
             .store(in: &cancellables)
         updater.start()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        showNote()
+        showNotes()
         return false
-    }
-
-    // MARK: - Notizfenster
-
-    private func setUpNoteWindow() {
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 340, height: 520),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
-            backing: .buffered, defer: false)
-        window.titlebarAppearsTransparent = true
-        window.titleVisibility = .hidden
-        window.isMovableByWindowBackground = true
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.hasShadow = true
-        window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 220, height: 180)
-        window.standardWindowButton(.zoomButton)?.isEnabled = false
-        window.delegate = self
-
-        let host = NSHostingView(rootView: NoteView(store: store, settings: settings, updater: updater, openSettings: { [weak self] in
-            self?.openSettings()
-        }))
-        host.sizingOptions = []
-        window.contentView = host
-        // Sonst macht AppKit beim Aktivieren das erste To-Do zum Eingabefeld und markiert dessen ganzen Text.
-        window.initialFirstResponder = host
-
-        if !window.setFrameUsingName("NoteWindow"), let screen = NSScreen.main?.visibleFrame {
-            window.setFrameOrigin(NSPoint(x: screen.maxX - window.frame.width - 40,
-                                          y: screen.maxY - window.frame.height - 40))
-        }
-        window.setFrameAutosaveName("NoteWindow")
-
-        noteWindow = window
-        apply(settings.settings)
-        window.orderFrontRegardless()
     }
 
     private func apply(_ s: NoteSettings) {
-        if menuLanguage != s.language {
-            menuLanguage = s.language
-            setUpMainMenu()
-            setUpStatusItem()
-            settingsWindow?.title = settingsTitle
-        }
-        guard let window = noteWindow else { return }
-        window.level = s.layer.level
-        window.collectionBehavior = s.layer == .desktop
-            ? [.canJoinAllSpaces, .stationary, .ignoresCycle]
-            : [.canJoinAllSpaces, .ignoresCycle]
-        window.alphaValue = s.opacity
-        for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
-            window.standardWindowButton(button)?.isHidden = !s.showWindowButtons
-        }
+        guard menuLanguage != s.language else { return }
+        let changed = menuLanguage != nil
+        menuLanguage = s.language
+        setUpMainMenu()
+        setUpStatusItem()
+        if changed { notes.forEach { $0.languageChanged() } }
     }
 
-    /// Schließen versteckt die Notiz nur; über das Menüleisten-Symbol kommt sie zurück.
-    func windowShouldClose(_ sender: NSWindow) -> Bool {
-        guard sender === noteWindow else { return true }
-        sender.orderOut(nil)
-        return false
+    // MARK: - Notizen
+
+    @discardableResult
+    private func addNote(_ settings: SettingsStore, cascadingFrom previous: NSWindow? = nil) -> NoteController {
+        let id = settings.id
+        let note = NoteController(
+            settings: settings, mainSettings: mainSettings, updater: updater, cascadingFrom: previous,
+            newNote: { [weak self] in self?.newNote() },
+            // Erst nach dem Kontextmenü, damit das Fenster nicht mitten in dessen Aktion verschwindet.
+            delete: id == .main ? nil : { [weak self] in DispatchQueue.main.async { self?.deleteNote(id) } })
+        note.onActivate = { [weak self] in self?.activeNote = $0 }
+        notes.append(note)
+        return note
     }
 
-    @objc private func showNote() {
-        if noteWindow.isMiniaturized { noteWindow.deminiaturize(nil) }
-        NSApp.activate()
-        noteWindow.makeKeyAndOrderFront(nil)
+    /// Neue Notiz mit einem Theme, das noch keine andere trägt; Schrift, Ebene usw. kommen von der aktuellen.
+    @objc private func newNote() {
+        let source = currentNote
+        var s = source.settings.settings
+        s.theme = ThemePreset.unused(by: notes.map(\.settings.settings.theme)).theme
+        s.title = NoteSettings().title
+        let settings = SettingsStore(id: .new())
+        settings.settings = s
+        let note = addNote(settings, cascadingFrom: source.window)
+        saveNoteList()
+        note.show()
+    }
+
+    private func deleteNote(_ id: NoteID) {
+        guard let index = notes.firstIndex(where: { $0.id == id }) else { return }
+        let note = notes[index]
+        if !note.store.items.isEmpty {
+            NSApp.activate()
+            let alert = NSAlert()
+            let title = note.settings.settings.title
+            alert.messageText = title.isEmpty
+                ? tr("Notiz löschen?", "Delete note?")
+                : tr("Notiz „\(title)“ löschen?", "Delete note “\(title)”?")
+            alert.informativeText = tr("Ihre To-Dos werden ebenfalls gelöscht.", "Its to-dos will be deleted too.")
+            alert.addButton(withTitle: tr("Löschen", "Delete")).hasDestructiveAction = true
+            alert.addButton(withTitle: tr("Abbrechen", "Cancel"))
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
+        notes.remove(at: index)
+        if activeNote === note { activeNote = nil }
+        note.destroy()
+        saveNoteList()
+    }
+
+    private func saveNoteList() {
+        UserDefaults.standard.set(notes.compactMap { $0.id.uuid?.uuidString }, forKey: Self.notesKey)
+    }
+
+    @objc private func showNotes() {
+        // Jedes show() macht seine Notiz zur aktiven, deshalb die aktuelle vorher merken.
+        let current = currentNote
+        notes.forEach { $0.show() }
+        current.show()
     }
 
     @objc private func removeDone() {
-        store.removeDone()
+        currentNote.store.removeDone()
     }
 
     @objc private func checkForUpdates() {
@@ -132,22 +141,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     // MARK: - Einstellungen
 
-    private var settingsTitle: String { tr("To Do – Einstellungen", "To Do – Settings") }
-
     @objc private func openSettings() {
-        if settingsWindow == nil {
-            let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 460, height: 680),
-                styleMask: [.titled, .closable, .resizable],
-                backing: .buffered, defer: false)
-            window.title = settingsTitle
-            window.isReleasedWhenClosed = false
-            window.contentView = NSHostingView(rootView: SettingsView(settings: settings))
-            window.center()
-            settingsWindow = window
-        }
-        NSApp.activate()
-        settingsWindow?.makeKeyAndOrderFront(nil)
+        currentNote.openSettings()
     }
 
     @objc private func reportBug() { Feedback.bug.open() }
@@ -157,7 +152,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func setUpStatusItem() {
         let menu = NSMenu()
-        menu.addItem(item(tr("Notiz anzeigen", "Show note"), #selector(showNote)))
+        menu.addItem(item(tr("Notizen anzeigen", "Show notes"), #selector(showNotes)))
+        menu.addItem(item(tr("Neue Notiz", "New note"), #selector(newNote), key: "n"))
         menu.addItem(item(tr("Erledigte entfernen", "Remove completed"), #selector(removeDone)))
         menu.addItem(.separator())
         menu.addItem(item(tr("Einstellungen …", "Settings …"), #selector(openSettings), key: ","))
@@ -175,6 +171,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         let appMenu = NSMenu()
         appMenu.addItem(item(tr("Einstellungen …", "Settings …"), #selector(openSettings), key: ","))
+        appMenu.addItem(item(tr("Neue Notiz", "New note"), #selector(newNote), key: "n"))
         appMenu.addItem(NSMenuItem(title: tr("To Do beenden", "Quit To Do"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         main.addItem(submenu(appMenu))
 
