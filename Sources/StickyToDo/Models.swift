@@ -57,6 +57,8 @@ final class TodoStore: ObservableObject {
 @MainActor
 final class SettingsStore: ObservableObject {
     @Published var settings: NoteSettings {
+        // Vor dem Veröffentlichen, damit alle Beobachter schon die neue Sprache sehen.
+        willSet { Language.current = newValue.language }
         didSet {
             save()
             if oldValue.theme.imagePath != settings.theme.imagePath { loadImage() }
@@ -75,6 +77,7 @@ final class SettingsStore: ObservableObject {
         } else {
             settings = NoteSettings()
         }
+        Language.current = settings.language
         loadImage()
     }
 

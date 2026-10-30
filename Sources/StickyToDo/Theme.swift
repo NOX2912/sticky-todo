@@ -10,17 +10,40 @@ extension Labeled {
     var id: Self { self }
 }
 
+enum Language: String, Codable, Labeled {
+    case german, english
+
+    /// Wird von `SettingsStore` gesetzt, bevor Änderungen veröffentlicht werden.
+    nonisolated(unsafe) static var current = Language.system
+
+    static var system: Language {
+        Locale.preferredLanguages.first?.hasPrefix("de") == true ? .german : .english
+    }
+
+    var label: String {
+        switch self {
+        case .german: "Deutsch"
+        case .english: "English"
+        }
+    }
+}
+
+/// Text in der eingestellten Sprache
+func tr(_ german: String, _ english: String) -> String {
+    Language.current == .english ? english : german
+}
+
 struct NoteTheme: Equatable {
     enum Background: String, Codable, Labeled {
         case color, stripes, dots, zebra, crumpled, image
         var label: String {
             switch self {
-            case .color: "Farbe"
-            case .stripes: "Streifen"
-            case .dots: "Punkte"
+            case .color: tr("Farbe", "Color")
+            case .stripes: tr("Streifen", "Stripes")
+            case .dots: tr("Punkte", "Dots")
             case .zebra: "Zebra"
-            case .crumpled: "Knitterpapier"
-            case .image: "Eigenes Bild"
+            case .crumpled: tr("Knitterpapier", "Crumpled paper")
+            case .image: tr("Eigenes Bild", "Custom image")
             }
         }
     }
@@ -29,10 +52,10 @@ struct NoteTheme: Equatable {
         case even, narrow, pinstripe, candy
         var label: String {
             switch self {
-            case .even: "Gleichmäßig"
-            case .narrow: "Schmal"
-            case .pinstripe: "Nadelstreifen"
-            case .candy: "Bunt"
+            case .even: tr("Gleichmäßig", "Even")
+            case .narrow: tr("Schmal", "Narrow")
+            case .pinstripe: tr("Nadelstreifen", "Pinstripe")
+            case .candy: tr("Bunt", "Candy")
             }
         }
     }
@@ -41,11 +64,11 @@ struct NoteTheme: Equatable {
         case none, paper, torn, stamp, lace
         var label: String {
             switch self {
-            case .none: "Keine"
-            case .paper: "Papier"
-            case .torn: "Gerissen"
-            case .stamp: "Briefmarke"
-            case .lace: "Spitze"
+            case .none: tr("Keine", "None")
+            case .paper: tr("Papier", "Paper")
+            case .torn: tr("Gerissen", "Torn")
+            case .stamp: tr("Briefmarke", "Stamp")
+            case .lace: tr("Spitze", "Lace")
             }
         }
     }
@@ -54,11 +77,11 @@ struct NoteTheme: Equatable {
         case none, gold, silver, stitched, felt
         var label: String {
             switch self {
-            case .none: "Keine"
+            case .none: tr("Keine", "None")
             case .gold: "Gold"
-            case .silver: "Silber"
-            case .stitched: "Gestickt"
-            case .felt: "Filz"
+            case .silver: tr("Silber", "Silver")
+            case .stitched: tr("Gestickt", "Stitched")
+            case .felt: tr("Filz", "Felt")
             }
         }
     }
@@ -67,10 +90,10 @@ struct NoteTheme: Equatable {
         case none, silver, gold, clipboard
         var label: String {
             switch self {
-            case .none: "Keine"
-            case .silver: "Büroklammer silber"
-            case .gold: "Büroklammer gold"
-            case .clipboard: "Klemmbrett"
+            case .none: tr("Keine", "None")
+            case .silver: tr("Büroklammer silber", "Silver paper clip")
+            case .gold: tr("Büroklammer gold", "Gold paper clip")
+            case .clipboard: tr("Klemmbrett", "Clipboard")
             }
         }
     }
@@ -79,9 +102,9 @@ struct NoteTheme: Equatable {
         case washiTape, starStickers, heartButton
         var label: String {
             switch self {
-            case .washiTape: "Washi-Tape"
-            case .starStickers: "Sternsticker"
-            case .heartButton: "Herzknopf"
+            case .washiTape: tr("Washi-Tape", "Washi tape")
+            case .starStickers: tr("Sternsticker", "Star stickers")
+            case .heartButton: tr("Herzknopf", "Heart button")
             }
         }
     }
@@ -144,52 +167,59 @@ extension KeyedDecodingContainer {
 }
 
 struct ThemePreset: Identifiable {
-    let name: String
+    let id: String
+    let englishName: String
     let theme: NoteTheme
-    var id: String { name }
+    var name: String { tr(id, englishName) }
+
+    init(_ name: String, _ englishName: String, _ theme: NoteTheme) {
+        id = name
+        self.englishName = englishName
+        self.theme = theme
+    }
 
     static let all: [ThemePreset] = [
-        .init(name: "Lavendel", theme: NoteTheme()),
-        .init(name: "Papier", theme: NoteTheme(
+        .init("Lavendel", "Lavender", NoteTheme()),
+        .init("Papier", "Paper", NoteTheme(
             background: .stripes, backgroundColor: "#FBEFEF", patternColor: "#F0BFC6",
             card: .paper, cardColor: "#E9E4D9", stars: .gold, clip: .silver,
             textColor: "#4A433D", checkColor: "#C9A23A")),
-        .init(name: "Silberstern", theme: NoteTheme(
+        .init("Silberstern", "Silver Star", NoteTheme(
             background: .stripes, backgroundColor: "#F9EEEA", patternColor: "#F3C5C6",
             card: .torn, cardColor: "#F1EFE8", stars: .silver,
             textColor: "#55504A", checkColor: "#9C98A3")),
-        .init(name: "Briefmarke", theme: NoteTheme(
+        .init("Briefmarke", "Stamp", NoteTheme(
             background: .stripes, backgroundColor: "#F2A9C3", patternColor: "#D94676", stripeStyle: .narrow,
             card: .stamp, cardColor: "#F3F1EF", stars: .felt, extras: [.heartButton],
             textColor: "#5A2A35", checkColor: "#C8364E")),
-        .init(name: "Washi", theme: NoteTheme(
+        .init("Washi", "Washi", NoteTheme(
             background: .stripes, backgroundColor: "#F6F2EC", patternColor: "#97A6C6", stripeStyle: .pinstripe,
             card: .paper, cardColor: "#EFE6DD", extras: [.washiTape, .starStickers],
             textColor: "#5A5058", checkColor: "#C49AAA")),
-        .init(name: "Orange", theme: NoteTheme(
+        .init("Orange", "Orange", NoteTheme(
             background: .stripes, backgroundColor: "#FBF3E4", patternColor: "#F4AE78", patternColor2: "#F8D79E",
             stripeStyle: .candy, card: .paper, cardColor: "#E9E4DA", stars: .stitched, clip: .silver,
             textColor: "#5A4A3A", checkColor: "#E8975A")),
-        .init(name: "Himmel", theme: NoteTheme(
+        .init("Himmel", "Sky", NoteTheme(
             background: .crumpled, backgroundColor: "#7FA2C6",
             card: .paper, cardColor: "#E8DDC2", stars: .gold, clip: .gold,
             textColor: "#4A4030", checkColor: "#C9A23A")),
-        .init(name: "Spitze", theme: NoteTheme(
+        .init("Spitze", "Lace", NoteTheme(
             background: .dots, backgroundColor: "#5A392D", patternColor: "#E7DCCD",
             card: .lace, cardColor: "#F4ECDD",
             textColor: "#4A3428", checkColor: "#8B5E3C")),
-        .init(name: "Zebra", theme: NoteTheme(
+        .init("Zebra", "Zebra", NoteTheme(
             background: .zebra, backgroundColor: "#EEE4CF", patternColor: "#161514",
             card: .paper, cardColor: "#E7E3DB", stars: .gold, clip: .silver,
             textColor: "#3E3A35", checkColor: "#C9A23A")),
-        .init(name: "Zebra Spitze", theme: NoteTheme(
+        .init("Zebra Spitze", "Zebra Lace", NoteTheme(
             background: .zebra, backgroundColor: "#EEE4CF", patternColor: "#161514",
             card: .lace, cardColor: "#EBDDBD", clip: .clipboard,
             textColor: "#4A3E2E", checkColor: "#A47B45")),
-        .init(name: "Butter", theme: NoteTheme(backgroundColor: "#FFF0A6", textColor: "#4B4430", checkColor: "#C7A02A")),
-        .init(name: "Minze", theme: NoteTheme(backgroundColor: "#CBEADB", textColor: "#2E4A3F", checkColor: "#4E9B7D")),
-        .init(name: "Pfirsich", theme: NoteTheme(backgroundColor: "#FFD9C4", textColor: "#5A3B2E", checkColor: "#E07A5F")),
-        .init(name: "Nacht", theme: NoteTheme(backgroundColor: "#2A2D3A", textColor: "#E7E9F0", checkColor: "#9CA6FF")),
+        .init("Butter", "Butter", NoteTheme(backgroundColor: "#FFF0A6", textColor: "#4B4430", checkColor: "#C7A02A")),
+        .init("Minze", "Mint", NoteTheme(backgroundColor: "#CBEADB", textColor: "#2E4A3F", checkColor: "#4E9B7D")),
+        .init("Pfirsich", "Peach", NoteTheme(backgroundColor: "#FFD9C4", textColor: "#5A3B2E", checkColor: "#E07A5F")),
+        .init("Nacht", "Night", NoteTheme(backgroundColor: "#2A2D3A", textColor: "#E7E9F0", checkColor: "#9CA6FF")),
     ]
 }
 
@@ -199,7 +229,7 @@ enum FontChoice: String, Codable, Labeled {
     var label: String {
         switch self {
         case .system: "System"
-        case .rounded: "Gerundet"
+        case .rounded: tr("Gerundet", "Rounded")
         case .serif: "Serif"
         case .noteworthy: "Noteworthy"
         case .markerFelt: "Marker Felt"
@@ -225,9 +255,9 @@ enum WindowLayer: String, Codable, Labeled {
 
     var label: String {
         switch self {
-        case .desktop: "Auf dem Schreibtisch"
-        case .normal: "Wie normales Fenster"
-        case .floating: "Immer im Vordergrund"
+        case .desktop: tr("Auf dem Schreibtisch", "On the desktop")
+        case .normal: tr("Wie normales Fenster", "Like a normal window")
+        case .floating: tr("Immer im Vordergrund", "Always on top")
         }
     }
 
@@ -251,11 +281,12 @@ struct NoteSettings: Equatable {
     var opacity: Double = 1
     var showWindowButtons = true
     var showPlaceholder = true
+    var language = Language.system
 }
 
 extension NoteSettings: Codable {
     private enum CodingKeys: String, CodingKey {
-        case theme, title, font, fontSize, padding, layer, opacity, showWindowButtons, showPlaceholder
+        case theme, title, font, fontSize, padding, layer, opacity, showWindowButtons, showPlaceholder, language
     }
 
     init(from decoder: Decoder) throws {
@@ -270,6 +301,7 @@ extension NoteSettings: Codable {
         opacity = c.value(.opacity) ?? d.opacity
         showWindowButtons = c.value(.showWindowButtons) ?? d.showWindowButtons
         showPlaceholder = c.value(.showPlaceholder) ?? d.showPlaceholder
+        language = c.value(.language) ?? d.language
     }
 }
 

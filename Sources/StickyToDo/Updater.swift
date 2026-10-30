@@ -54,7 +54,7 @@ final class Updater: ObservableObject {
                 installing = false
                 NSApp.activate()
                 let alert = NSAlert()
-                alert.messageText = "Update fehlgeschlagen"
+                alert.messageText = tr("Update fehlgeschlagen", "Update failed")
                 alert.informativeText = error.localizedDescription
                 alert.runModal()
             }

@@ -20,44 +20,44 @@ struct SettingsView: View {
                 .padding(.vertical, 4)
             }
 
-            Section("Hintergrund") {
-                picker("Muster", theme.background)
+            Section(tr("Hintergrund", "Background")) {
+                picker(tr("Muster", "Pattern"), theme.background)
 
                 switch settings.settings.theme.background {
                 case .color, .crumpled:
-                    colorPicker("Farbe", \.backgroundColor)
+                    colorPicker(tr("Farbe", "Color"), \.backgroundColor)
                 case .stripes:
-                    picker("Streifen", theme.stripeStyle)
-                    colorPicker("Grundfarbe", \.backgroundColor)
-                    colorPicker("Streifenfarbe", \.patternColor)
+                    picker(tr("Streifen", "Stripes"), theme.stripeStyle)
+                    colorPicker(tr("Grundfarbe", "Base color"), \.backgroundColor)
+                    colorPicker(tr("Streifenfarbe", "Stripe color"), \.patternColor)
                     if settings.settings.theme.stripeStyle == .candy {
-                        colorPicker("Zweite Streifenfarbe", \.patternColor2)
+                        colorPicker(tr("Zweite Streifenfarbe", "Second stripe color"), \.patternColor2)
                     }
                 case .dots:
-                    colorPicker("Grundfarbe", \.backgroundColor)
-                    colorPicker("Punktfarbe", \.patternColor)
+                    colorPicker(tr("Grundfarbe", "Base color"), \.backgroundColor)
+                    colorPicker(tr("Punktfarbe", "Dot color"), \.patternColor)
                 case .zebra:
-                    colorPicker("Helle Farbe", \.backgroundColor)
-                    colorPicker("Streifenfarbe", \.patternColor)
+                    colorPicker(tr("Helle Farbe", "Light color"), \.backgroundColor)
+                    colorPicker(tr("Streifenfarbe", "Stripe color"), \.patternColor)
                 case .image:
-                    LabeledContent("Bild") {
+                    LabeledContent(tr("Bild", "Image")) {
                         HStack {
                             if settings.settings.theme.imagePath == nil {
-                                Text("Kein Bild").foregroundStyle(.secondary)
+                                Text(tr("Kein Bild", "No image")).foregroundStyle(.secondary)
                             }
-                            Button("Bild wählen …", action: chooseImage)
+                            Button(tr("Bild wählen …", "Choose image …"), action: chooseImage)
                         }
                     }
                 }
 
             }
 
-            Section("Karte & Deko") {
-                picker("Karte", theme.card)
+            Section(tr("Karte & Deko", "Card & decorations")) {
+                picker(tr("Karte", "Card"), theme.card)
                 if settings.settings.theme.card != .none {
-                    colorPicker("Kartenfarbe", \.cardColor)
-                    picker("Sterne", theme.stars)
-                    picker("Klammer", theme.clip)
+                    colorPicker(tr("Kartenfarbe", "Card color"), \.cardColor)
+                    picker(tr("Sterne", "Stars"), theme.stars)
+                    picker(tr("Klammer", "Clip"), theme.clip)
                     ForEach(Array(NoteTheme.Extra.allCases)) { extra in
                         Toggle(extra.label, isOn: Binding(
                             get: { settings.settings.theme.extras.contains(extra) },
@@ -69,22 +69,23 @@ struct SettingsView: View {
             }
 
             Section("Text") {
-                TextField("Überschrift", text: $settings.settings.title)
-                Toggle("„Neues To-Do“ anzeigen", isOn: $settings.settings.showPlaceholder)
-                picker("Schrift", $settings.settings.font)
+                TextField(tr("Überschrift", "Title"), text: $settings.settings.title)
+                Toggle(tr("„Neues To-Do“ anzeigen", "Show “New to-do”"), isOn: $settings.settings.showPlaceholder)
+                picker(tr("Schrift", "Font"), $settings.settings.font)
                 Slider(value: $settings.settings.fontSize, in: 13...32) {
-                    Text("Schriftgröße")
+                    Text(tr("Schriftgröße", "Font size"))
                 }
-                colorPicker("Textfarbe", \.textColor)
-                colorPicker("Haken-Farbe", \.checkColor)
+                colorPicker(tr("Textfarbe", "Text color"), \.textColor)
+                colorPicker(tr("Haken-Farbe", "Checkmark color"), \.checkColor)
             }
 
-            Section("Fenster") {
-                picker("Ebene", $settings.settings.layer)
-                Slider(value: $settings.settings.padding, in: 8...60) { Text("Innenabstand") }
-                Slider(value: $settings.settings.opacity, in: 0.4...1) { Text("Deckkraft") }
-                Toggle("Fensterknöpfe anzeigen", isOn: $settings.settings.showWindowButtons)
-                Toggle("Beim Anmelden öffnen", isOn: $launchAtLogin)
+            Section(tr("Fenster", "Window")) {
+                picker("Sprache / Language", $settings.settings.language)
+                picker(tr("Ebene", "Layer"), $settings.settings.layer)
+                Slider(value: $settings.settings.padding, in: 8...60) { Text(tr("Innenabstand", "Padding")) }
+                Slider(value: $settings.settings.opacity, in: 0.4...1) { Text(tr("Deckkraft", "Opacity")) }
+                Toggle(tr("Fensterknöpfe anzeigen", "Show window buttons"), isOn: $settings.settings.showWindowButtons)
+                Toggle(tr("Beim Anmelden öffnen", "Open at login"), isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, enabled in setLaunchAtLogin(enabled) }
             }
 
@@ -154,7 +155,7 @@ struct SettingsView: View {
             try settings.importImage(from: url)
             error = nil
         } catch {
-            self.error = "Bild konnte nicht übernommen werden: \(error.localizedDescription)"
+            self.error = tr("Bild konnte nicht übernommen werden: ", "Could not use image: ") + error.localizedDescription
         }
     }
 
@@ -167,7 +168,7 @@ struct SettingsView: View {
             }
             error = nil
         } catch {
-            self.error = "Autostart konnte nicht geändert werden: \(error.localizedDescription)"
+            self.error = tr("Autostart konnte nicht geändert werden: ", "Could not change launch at login: ") + error.localizedDescription
             launchAtLogin = SMAppService.mainApp.status == .enabled
         }
     }

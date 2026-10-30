@@ -23,10 +23,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var settingsWindow: NSWindow?
     private var statusItem: NSStatusItem!
     private var cancellables = Set<AnyCancellable>()
+    private var menuLanguage: Language?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        setUpMainMenu()
-        setUpStatusItem()
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        statusItem.button?.image = NSImage(systemSymbolName: "checklist", accessibilityDescription: "To Do")
         setUpNoteWindow()
         settings.$settings
             .sink { [weak self] in self?.apply($0) }
@@ -77,6 +78,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func apply(_ s: NoteSettings) {
+        if menuLanguage != s.language {
+            menuLanguage = s.language
+            setUpMainMenu()
+            setUpStatusItem()
+            settingsWindow?.title = settingsTitle
+        }
         guard let window = noteWindow else { return }
         window.level = s.layer.level
         window.collectionBehavior = s.layer == .desktop
@@ -111,13 +118,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             NSApp.activate()
             let alert = NSAlert()
             if let release = updater.available {
-                alert.messageText = "Version \(release.version) ist verfügbar"
-                alert.informativeText = "Du hast Version \(updater.current)."
-                alert.addButton(withTitle: "Installieren")
-                alert.addButton(withTitle: "Später")
+                alert.messageText = tr("Version \(release.version) ist verfügbar", "Version \(release.version) is available")
+                alert.informativeText = tr("Du hast Version \(updater.current).", "You have version \(updater.current).")
+                alert.addButton(withTitle: tr("Installieren", "Install"))
+                alert.addButton(withTitle: tr("Später", "Later"))
                 if alert.runModal() == .alertFirstButtonReturn { updater.install() }
             } else {
-                alert.messageText = "Du hast die neueste Version (\(updater.current))."
+                alert.messageText = tr("Du hast die neueste Version (\(updater.current)).", "You have the latest version (\(updater.current)).")
                 alert.runModal()
             }
         }
@@ -125,13 +132,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     // MARK: - Einstellungen
 
+    private var settingsTitle: String { tr("To Do – Einstellungen", "To Do – Settings") }
+
     @objc private func openSettings() {
         if settingsWindow == nil {
             let window = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 460, height: 680),
                 styleMask: [.titled, .closable, .resizable],
                 backing: .buffered, defer: false)
-            window.title = "To Do – Einstellungen"
+            window.title = settingsTitle
             window.isReleasedWhenClosed = false
             window.contentView = NSHostingView(rootView: SettingsView(settings: settings))
             window.center()
@@ -147,19 +156,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // MARK: - Menüs
 
     private func setUpStatusItem() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = NSImage(systemSymbolName: "checklist", accessibilityDescription: "To Do")
-
         let menu = NSMenu()
-        menu.addItem(item("Notiz anzeigen", #selector(showNote)))
-        menu.addItem(item("Erledigte entfernen", #selector(removeDone)))
+        menu.addItem(item(tr("Notiz anzeigen", "Show note"), #selector(showNote)))
+        menu.addItem(item(tr("Erledigte entfernen", "Remove completed"), #selector(removeDone)))
         menu.addItem(.separator())
-        menu.addItem(item("Einstellungen …", #selector(openSettings), key: ","))
-        menu.addItem(item("Nach Updates suchen …", #selector(checkForUpdates)))
-        menu.addItem(item("Fehler melden …", #selector(reportBug)))
-        menu.addItem(item("Funktion vorschlagen …", #selector(requestFeature)))
+        menu.addItem(item(tr("Einstellungen …", "Settings …"), #selector(openSettings), key: ","))
+        menu.addItem(item(tr("Nach Updates suchen …", "Check for updates …"), #selector(checkForUpdates)))
+        menu.addItem(item(tr("Fehler melden …", "Report a bug …"), #selector(reportBug)))
+        menu.addItem(item(tr("Funktion vorschlagen …", "Suggest a feature …"), #selector(requestFeature)))
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Beenden", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: tr("Beenden", "Quit"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu
     }
 
@@ -168,26 +174,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let main = NSMenu()
 
         let appMenu = NSMenu()
-        appMenu.addItem(item("Einstellungen …", #selector(openSettings), key: ","))
-        appMenu.addItem(NSMenuItem(title: "To Do beenden", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        appMenu.addItem(item(tr("Einstellungen …", "Settings …"), #selector(openSettings), key: ","))
+        appMenu.addItem(NSMenuItem(title: tr("To Do beenden", "Quit To Do"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         main.addItem(submenu(appMenu))
 
-        let edit = NSMenu(title: "Bearbeiten")
-        edit.addItem(NSMenuItem(title: "Widerrufen", action: Selector(("undo:")), keyEquivalent: "z"))
-        edit.addItem(NSMenuItem(title: "Wiederholen", action: Selector(("redo:")), keyEquivalent: "Z"))
+        let edit = NSMenu(title: tr("Bearbeiten", "Edit"))
+        edit.addItem(NSMenuItem(title: tr("Widerrufen", "Undo"), action: Selector(("undo:")), keyEquivalent: "z"))
+        edit.addItem(NSMenuItem(title: tr("Wiederholen", "Redo"), action: Selector(("redo:")), keyEquivalent: "Z"))
         edit.addItem(.separator())
-        edit.addItem(NSMenuItem(title: "Ausschneiden", action: #selector(NSText.cut(_:)), keyEquivalent: "x"))
-        edit.addItem(NSMenuItem(title: "Kopieren", action: #selector(NSText.copy(_:)), keyEquivalent: "c"))
-        edit.addItem(NSMenuItem(title: "Einsetzen", action: #selector(NSText.paste(_:)), keyEquivalent: "v"))
-        edit.addItem(NSMenuItem(title: "Alles auswählen", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"))
+        edit.addItem(NSMenuItem(title: tr("Ausschneiden", "Cut"), action: #selector(NSText.cut(_:)), keyEquivalent: "x"))
+        edit.addItem(NSMenuItem(title: tr("Kopieren", "Copy"), action: #selector(NSText.copy(_:)), keyEquivalent: "c"))
+        edit.addItem(NSMenuItem(title: tr("Einsetzen", "Paste"), action: #selector(NSText.paste(_:)), keyEquivalent: "v"))
+        edit.addItem(NSMenuItem(title: tr("Alles auswählen", "Select All"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"))
         edit.addItem(.separator())
-        let emoji = NSMenuItem(title: "Emoji & Symbole", action: #selector(NSApplication.orderFrontCharacterPalette(_:)), keyEquivalent: " ")
+        let emoji = NSMenuItem(title: tr("Emoji & Symbole", "Emoji & Symbols"), action: #selector(NSApplication.orderFrontCharacterPalette(_:)), keyEquivalent: " ")
         emoji.keyEquivalentModifierMask = [.control, .command]
         edit.addItem(emoji)
         main.addItem(submenu(edit))
 
-        let window = NSMenu(title: "Fenster")
-        window.addItem(NSMenuItem(title: "Schließen", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
+        let window = NSMenu(title: tr("Fenster", "Window"))
+        window.addItem(NSMenuItem(title: tr("Schließen", "Close"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
         main.addItem(submenu(window))
 
         NSApp.mainMenu = main

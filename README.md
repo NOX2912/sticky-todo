@@ -4,9 +4,17 @@ A sticky-note to-do list for the macOS desktop. It sits behind your windows like
 
 ![Sticky ToDo: typing a to-do, checking it off and switching themes](docs/demo.gif)
 
-Includes 14 themes and lets you customize the background, card, decorations, font and colors. You can also use your own background image.
+Includes 14 themes and lets you customize the background, card, decorations, font and colors. You can also use your own background image. The interface is available in English and German (switch under **Settings → Window → Language**).
 
-## Build
+## Download
+
+**[⬇ Download the latest version (ToDo.zip)](https://github.com/NOX2912/sticky-todo/releases/latest/download/ToDo.zip)**
+
+Unzip it and move **To Do.app** to your Applications folder. Requires macOS 14 or later. All versions are listed on the [releases page](https://github.com/NOX2912/sticky-todo/releases).
+
+The app is not notarized. On first launch, allow it under **System Settings → Privacy & Security → Open Anyway**.
+
+## Build from source
 
 Requires macOS 14+ and Xcode.
 
@@ -15,8 +23,6 @@ git clone https://github.com/NOX2912/sticky-todo.git
 cd sticky-todo
 ./build.sh install   # builds and copies "To Do.app" to ~/Applications
 ```
-
-The app is not notarized. On first launch, allow it under **System Settings → Privacy & Security → Open Anyway**.
 
 ## Updates
 

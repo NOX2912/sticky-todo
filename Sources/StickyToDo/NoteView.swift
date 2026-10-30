@@ -47,7 +47,7 @@ struct NoteView: View {
                 }
                 list
                 if let release = updater.available {
-                    Button(updater.installing ? "Update wird installiert …" : "Update auf \(release.version) installieren") {
+                    Button(updater.installing ? tr("Update wird installiert …", "Installing update …") : tr("Update auf \(release.version) installieren", "Install update \(release.version)")) {
                         updater.install()
                     }
                     .buttonStyle(.plain)
@@ -115,9 +115,9 @@ struct NoteView: View {
                 }
         }
         .contextMenu {
-            Button(item.done ? "Als offen markieren" : "Abhaken") { store.toggle(id) }
-            Button("Neues To-Do darunter") { insert(below: id) }
-            Button("Löschen", role: .destructive) { store.remove(id) }
+            Button(item.done ? tr("Als offen markieren", "Mark as open") : tr("Abhaken", "Check off")) { store.toggle(id) }
+            Button(tr("Neues To-Do darunter", "New to-do below")) { insert(below: id) }
+            Button(tr("Löschen", "Delete"), role: .destructive) { store.remove(id) }
             Divider()
             noteMenu
         }
@@ -141,7 +141,7 @@ struct NoteView: View {
                 .foregroundStyle(textColor)
                 .background(alignment: .topLeading) {
                     if draft.isEmpty && s.showPlaceholder {
-                        Text("Neues To-Do")
+                        Text(tr("Neues To-Do", "New to-do"))
                             .font(s.font.font(size: s.fontSize))
                             .foregroundStyle(textColor.opacity(0.4))
                             .allowsHitTesting(false)
@@ -157,12 +157,12 @@ struct NoteView: View {
     }
 
     @ViewBuilder private var noteMenu: some View {
-        Button("Erledigte entfernen") { withAnimation { store.removeDone() } }
+        Button(tr("Erledigte entfernen", "Remove completed")) { withAnimation { store.removeDone() } }
             .disabled(!store.items.contains(where: \.done))
-        Button("Einstellungen …", action: openSettings)
+        Button(tr("Einstellungen …", "Settings …"), action: openSettings)
         Divider()
-        Button("Fehler melden …") { Feedback.bug.open() }
-        Button("Funktion vorschlagen …") { Feedback.feature.open() }
+        Button(tr("Fehler melden …", "Report a bug …")) { Feedback.bug.open() }
+        Button(tr("Funktion vorschlagen …", "Suggest a feature …")) { Feedback.feature.open() }
     }
 
     /// Enter in einem To-Do legt darunter ein neues an; Enter in einem leeren beendet die Eingabe.
