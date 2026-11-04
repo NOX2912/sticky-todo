@@ -43,9 +43,9 @@ swift test                  # Tests (Swift Testing), vor jedem Release automatis
 
 Die App hat kein Dock-Symbol und liegt auf Schreibtisch-Ebene, deshalb kann Computer Use sie nicht steuern. Zum Testen:
 
-1. Daten sichern, denn Tests laufen auf den echten Daten: `rm -rf /tmp/StickyToDo-Sicherung && cp -R ~/Library/Application\ Support/StickyToDo /tmp/StickyToDo-Sicherung` (sonst landet die Kopie in einer alten Sicherung) und `defaults export io.github.nox2912.StickyToDo /tmp/StickyToDo.plist` (Einstellungen, weitere Notizen, Fensterpositionen). Nur `todos.json` reicht nicht: „Notiz löschen“ entfernt die Dateien und Schlüssel der weiteren Notizen endgültig.
+1. Daten sichern, denn Tests laufen auf den echten Daten: `[ ! -e /tmp/StickyToDo-Sicherung ] && cp -R ~/Library/Application\ Support/StickyToDo /tmp/StickyToDo-Sicherung && defaults export io.github.nox2912.StickyToDo /tmp/StickyToDo-Sicherung.plist` (To-Dos, Einstellungen, weitere Notizen, Fensterpositionen). Gibt es die Sicherung schon, wurde ein früherer Test nicht zurückgespielt: erst das erledigen. Nur `todos.json` reicht nicht: „Notiz löschen“ entfernt die Dateien und Schlüssel der weiteren Notizen endgültig.
 2. Vorübergehend `NSApp.setActivationPolicy(.regular)` setzen und in `NoteController.apply` `window.level = .floating` statt `s.layer.level`. An anderer Stelle überschreibt `apply` den Wert bei jeder Einstellungsänderung.
 3. Mit `open "build/To Do.app"` starten.
-4. Danach die App beenden, die Änderung zurücknehmen und beides zurückspielen: den Ordner ersetzen und `defaults import io.github.nox2912.StickyToDo /tmp/StickyToDo.plist`.
+4. Danach die App beenden, die Änderung zurücknehmen und beides zurückspielen: den Ordner ersetzen und `defaults import io.github.nox2912.StickyToDo /tmp/StickyToDo-Sicherung.plist`. Erst danach die Sicherung löschen.
 
 Enter und Backspace kommen nur bei voller Bildschirmsteuerung zuverlässig an, nicht über die Hintergrund-Tools.

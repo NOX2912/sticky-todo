@@ -152,7 +152,7 @@ struct NoteView: View {
                         .filter { !$0.isEmpty }
                     text(of: id).wrappedValue = lines.first ?? ""
                     if let last = insert(rest, below: id) {
-                        // Wie beim Einfügen ins Eingabefeld: keine zusätzliche leere Zeile, weiter am Ende der letzten.
+                        // Keine zusätzliche leere Zeile anhängen, sondern am Ende der zuletzt eingefügten weiterschreiben.
                         DispatchQueue.main.async { focusAtEnd(last) }
                     } else {
                         finishEditing(id)

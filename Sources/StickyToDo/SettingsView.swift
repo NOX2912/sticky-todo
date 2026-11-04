@@ -89,14 +89,18 @@ struct SettingsView: View {
                 Slider(value: $settings.settings.opacity, in: 0.4...1) { Text(tr("Deckkraft", "Opacity")) }
                 Toggle(tr("Fensterknöpfe anzeigen", "Show window buttons"), isOn: $settings.settings.showWindowButtons)
                 // Eigene Bindung statt onChange: Das Zurücksetzen nach einem Fehler darf nicht erneut umschalten.
+                // Wartet der Autostart auf Erlaubnis, bleibt der Schalter an, damit man ihn auch wieder abschalten kann.
                 Toggle(tr("Beim Anmelden öffnen", "Open at login"), isOn: Binding(
-                    get: { loginStatus == .enabled },
+                    get: { loginStatus == .enabled || loginStatus == .requiresApproval },
                     set: { setLaunchAtLogin($0) }))
                 if loginStatus == .requiresApproval {
-                    Text(tr("Bitte in den Systemeinstellungen unter „Anmeldeobjekte“ erlauben.",
-                            "Please allow it in System Settings under “Login Items”."))
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+                    LabeledContent(tr("Wartet auf Erlaubnis unter „Anmeldeobjekte“.", "Needs permission under “Login Items”.")) {
+                        Button(tr("Systemeinstellungen …", "System Settings …")) {
+                            SMAppService.openSystemSettingsLoginItems()
+                        }
+                    }
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
                 }
             }
 
