@@ -151,7 +151,12 @@ struct NoteView: View {
                         .map { $0.trimmingCharacters(in: .whitespaces) }
                         .filter { !$0.isEmpty }
                     text(of: id).wrappedValue = lines.first ?? ""
-                    finishEditing(insert(rest, below: id) ?? id)
+                    if let last = insert(rest, below: id) {
+                        // Wie beim Einfügen ins Eingabefeld: keine zusätzliche leere Zeile, weiter am Ende der letzten.
+                        DispatchQueue.main.async { focusAtEnd(last) }
+                    } else {
+                        finishEditing(id)
+                    }
                 }
         }
         .contextMenu {
@@ -248,8 +253,13 @@ struct NoteView: View {
         guard let index = store.items.firstIndex(where: { $0.id == id }) else { return }
         store.remove(id)
         guard index > 0 else { focus = .new; return }
-        focus = .item(store.items[index - 1].id)
-        // Beim Fokussieren markiert macOS den ganzen Text; das nächste Backspace würde sonst alles löschen.
+        focusAtEnd(store.items[index - 1].id)
+    }
+
+    /// Fokus auf ein bestehendes To-Do, Cursor ans Ende. Beim Fokussieren markiert macOS den ganzen Text,
+    /// der nächste Tastendruck (z. B. Backspace) würde ihn sonst ersetzen.
+    private func focusAtEnd(_ id: UUID) {
+        focus = .item(id)
         DispatchQueue.main.async {
             guard let editor = NSApp.keyWindow?.firstResponder as? NSTextView else { return }
             editor.setSelectedRange(NSRange(location: (editor.string as NSString).length, length: 0))

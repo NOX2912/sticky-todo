@@ -77,6 +77,8 @@ final class TodoStore: ObservableObject {
                 .appendingPathExtension("unreadable-\(Int(Date().timeIntervalSince1970))")
                 .appendingPathExtension(url.pathExtension)
             canSave = (try? FileManager.default.moveItem(at: url, to: backup)) != nil
+            // Klappt nicht einmal das Umbenennen im selben Ordner, ginge auch Speichern nicht.
+            if !canSave { NSLog("StickyToDo: %@ ist unlesbar und konnte nicht gesichert werden", url.path) }
         }
     }
 

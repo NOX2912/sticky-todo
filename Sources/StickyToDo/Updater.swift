@@ -71,8 +71,20 @@ final class Updater: ObservableObject {
         // Direkt aus dem Download-Ordner gestartet, läuft die App an einem schreibgeschützten Ort
         // (App Translocation) und kann sich dort nicht ersetzen.
         if target.path.contains("/AppTranslocation/") { throw UpdateError.translocated }
+        try await replaceApp(at: target, withZipFrom: release.zip)
 
-        let (zip, _) = try await URLSession.shared.download(from: release.zip)
+        // Neue Version starten, sobald diese beendet ist
+        let relaunch = Process()
+        relaunch.executableURL = URL(fileURLWithPath: "/bin/sh")
+        relaunch.arguments = ["-c", "sleep 1; open \"$0\"", target.path]
+        try relaunch.run()
+        NSApp.terminate(nil)
+    }
+
+    /// Lädt die ZIP, entpackt sie und tauscht die App aus. Eigene Funktion, damit die Zwischendateien
+    /// aufgeräumt sind, bevor `NSApp.terminate` den Prozess beendet (danach liefe kein `defer` mehr).
+    private func replaceApp(at target: URL, withZipFrom url: URL) async throws {
+        let (zip, _) = try await URLSession.shared.download(from: url)
         defer { try? FileManager.default.removeItem(at: zip) }
         // Auf demselben Volume wie die App entpacken, sonst kann replaceItemAt sie nicht verschieben.
         let folder = try FileManager.default.url(
@@ -84,15 +96,7 @@ final class Updater: ObservableObject {
             throw CocoaError(.fileReadCorruptFile)
         }
         try run("/usr/bin/xattr", "-cr", app.path)
-
         _ = try FileManager.default.replaceItemAt(target, withItemAt: app)
-
-        // Neue Version starten, sobald diese beendet ist
-        let relaunch = Process()
-        relaunch.executableURL = URL(fileURLWithPath: "/bin/sh")
-        relaunch.arguments = ["-c", "sleep 1; open \"$0\"", target.path]
-        try relaunch.run()
-        NSApp.terminate(nil)
     }
 
     private func run(_ tool: String, _ arguments: String...) throws {

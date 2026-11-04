@@ -6,7 +6,8 @@ struct SettingsView: View {
     @ObservedObject var settings: SettingsStore
     /// Erste Notiz; die Sprache gilt für alle Notizen und liegt dort.
     @ObservedObject var main: SettingsStore
-    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    /// Autostart gilt für die ganze App, jede Notiz hat aber ihr eigenes Einstellungsfenster: beim Aktivieren neu lesen.
+    @State private var loginStatus = SMAppService.mainApp.status
     @State private var error: String?
 
     private var theme: Binding<NoteTheme> { $settings.settings.theme }
@@ -89,8 +90,14 @@ struct SettingsView: View {
                 Toggle(tr("Fensterknöpfe anzeigen", "Show window buttons"), isOn: $settings.settings.showWindowButtons)
                 // Eigene Bindung statt onChange: Das Zurücksetzen nach einem Fehler darf nicht erneut umschalten.
                 Toggle(tr("Beim Anmelden öffnen", "Open at login"), isOn: Binding(
-                    get: { launchAtLogin },
+                    get: { loginStatus == .enabled },
                     set: { setLaunchAtLogin($0) }))
+                if loginStatus == .requiresApproval {
+                    Text(tr("Bitte in den Systemeinstellungen unter „Anmeldeobjekte“ erlauben.",
+                            "Please allow it in System Settings under “Login Items”."))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if let error {
@@ -99,9 +106,8 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(minWidth: 420, minHeight: 500)
-        // Der Autostart gilt für die ganze App, jede Notiz hat aber ihr eigenes Einstellungsfenster.
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
-            launchAtLogin = SMAppService.mainApp.status == .enabled
+            loginStatus = SMAppService.mainApp.status
         }
     }
 
@@ -178,11 +184,6 @@ struct SettingsView: View {
         } catch {
             self.error = tr("Autostart konnte nicht geändert werden: ", "Could not change launch at login: ") + error.localizedDescription
         }
-        let status = SMAppService.mainApp.status
-        if enabled && status == .requiresApproval {
-            error = tr("Bitte in den Systemeinstellungen unter „Anmeldeobjekte“ erlauben.",
-                       "Please allow it in System Settings under “Login Items”.")
-        }
-        launchAtLogin = status == .enabled
+        loginStatus = SMAppService.mainApp.status
     }
 }

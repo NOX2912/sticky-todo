@@ -29,4 +29,4 @@ jobs:
       - name: App bauen (Universal-Binary)
         run: |
           ./build.sh
-          lipo -archs "build/To Do.app/Contents/MacOS/StickyToDo"
+          lipo "build/To Do.app/Contents/MacOS/StickyToDo" -verify_arch arm64 x86_64
