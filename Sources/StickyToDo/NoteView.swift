@@ -5,6 +5,8 @@ struct NoteView: View {
     @ObservedObject var store: TodoStore
     @ObservedObject var settings: SettingsStore
     @ObservedObject var updater: Updater
+    /// Macht die Notiz zum aktiven Fenster. Ein Rechtsklick tut das nicht; ohne das liefe Tippen ins vorige Fenster.
+    var activate: () -> Void
     var openSettings: () -> Void
     var newNote: () -> Void
     /// Fehlt bei der ersten Notiz, die bleibt immer.
@@ -13,6 +15,8 @@ struct NoteView: View {
     @State private var draft = ""
     @State private var editingTitle = false
     @State private var keyMonitor: Any?
+    /// Das letzte Backspace hat eine Zeile gelöscht; gehaltene Wiederholungen dürfen nicht weiterlöschen.
+    @State private var backspaceDeletedRow = false
     @FocusState private var focus: Field?
 
     private enum Field: Hashable {
@@ -95,10 +99,17 @@ struct NoteView: View {
             // Der Monitor sieht die Tasten aller Notizen, deshalb nur auf das eigene Fenster reagieren.
             if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
             keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-                guard event.keyCode == 51, event.window?.identifier?.rawValue == id.windowName,
-                      case .item(let item)? = focus,
+                guard event.keyCode == 51, event.window?.identifier?.rawValue == id.windowName else { return event }
+                // Gehaltene Taste: Nach dem Löschen einer Zeile nicht in die vorherige weiterlaufen.
+                if event.isARepeat && backspaceDeletedRow { return nil }
+                backspaceDeletedRow = false
+                guard case .item(let item)? = focus,
                       store.items.first(where: { $0.id == item })?.text.isEmpty == true else { return event }
-                deleteEmpty(item)
+                // Nur ein neuer Tastendruck löscht die leere Zeile, eine Wiederholung bleibt wirkungslos.
+                if !event.isARepeat {
+                    deleteEmpty(item)
+                    backspaceDeletedRow = true
+                }
                 return nil
             }
         }
@@ -132,15 +143,28 @@ struct NoteView: View {
                 .focused($focus, equals: .item(id))
                 .onSubmit { finishEditing(id) }
                 .onChange(of: item.text) { _, newText in
-                    // To-Dos sind einzeilig; ein Zeilenumbruch beendet die Bearbeitung.
+                    // To-Dos sind einzeilig: Ein Zeilenumbruch beendet die Bearbeitung,
+                    // eingefügte weitere Zeilen werden wie im Eingabefeld zu eigenen To-Dos darunter.
                     guard newText.contains(where: \.isNewline) else { return }
-                    text(of: id).wrappedValue = newText.filter { !$0.isNewline }
-                    finishEditing(id)
+                    let lines = newText.split(whereSeparator: \.isNewline).map(String.init)
+                    let rest = lines.dropFirst()
+                        .map { $0.trimmingCharacters(in: .whitespaces) }
+                        .filter { !$0.isEmpty }
+                    text(of: id).wrappedValue = lines.first ?? ""
+                    if let last = insert(rest, below: id) {
+                        // Keine zusätzliche leere Zeile anhängen, sondern am Ende der zuletzt eingefügten weiterschreiben.
+                        DispatchQueue.main.async { focusAtEnd(last) }
+                    } else {
+                        finishEditing(id)
+                    }
                 }
         }
         .contextMenu {
             Button(item.done ? tr("Als offen markieren", "Mark as open") : tr("Abhaken", "Check off")) { store.toggle(id) }
-            Button(tr("Neues To-Do darunter", "New to-do below")) { insert(below: id) }
+            Button(tr("Neues To-Do darunter", "New to-do below")) {
+                activate()
+                insert(below: id)
+            }
             Button(tr("Löschen", "Delete"), role: .destructive) { store.remove(id) }
             Divider()
             noteMenu
@@ -196,6 +220,7 @@ struct NoteView: View {
     }
 
     private func editTitle() {
+        activate()
         editingTitle = true
         DispatchQueue.main.async { focus = .title }
     }
@@ -211,10 +236,16 @@ struct NoteView: View {
     }
 
     private func insert(below id: UUID) {
-        guard let index = store.items.firstIndex(where: { $0.id == id }) else { return }
-        let item = TodoItem(text: "")
-        store.items.insert(item, at: index + 1)
-        DispatchQueue.main.async { focus = .item(item.id) }
+        guard let new = insert([""], below: id) else { return }
+        DispatchQueue.main.async { focus = .item(new) }
+    }
+
+    /// Fügt To-Dos unter `id` ein und gibt die ID des letzten zurück.
+    private func insert(_ texts: [String], below id: UUID) -> UUID? {
+        guard let index = store.items.firstIndex(where: { $0.id == id }), !texts.isEmpty else { return nil }
+        let items = texts.map { TodoItem(text: $0) }
+        store.items.insert(contentsOf: items, at: index + 1)
+        return items.last?.id
     }
 
     /// Backspace in einem leeren To-Do: löschen und mit dem Cursor ans Ende des vorherigen springen.
@@ -222,8 +253,13 @@ struct NoteView: View {
         guard let index = store.items.firstIndex(where: { $0.id == id }) else { return }
         store.remove(id)
         guard index > 0 else { focus = .new; return }
-        focus = .item(store.items[index - 1].id)
-        // Beim Fokussieren markiert macOS den ganzen Text; das nächste Backspace würde sonst alles löschen.
+        focusAtEnd(store.items[index - 1].id)
+    }
+
+    /// Fokus auf ein bestehendes To-Do, Cursor ans Ende. Beim Fokussieren markiert macOS den ganzen Text,
+    /// der nächste Tastendruck (z. B. Backspace) würde ihn sonst ersetzen.
+    private func focusAtEnd(_ id: UUID) {
+        focus = .item(id)
         DispatchQueue.main.async {
             guard let editor = NSApp.keyWindow?.firstResponder as? NSTextView else { return }
             editor.setSelectedRange(NSRange(location: (editor.string as NSString).length, length: 0))
@@ -241,7 +277,7 @@ struct NoteView: View {
     }
 
     private func isEmpty(_ id: UUID) -> Bool {
-        store.items.first(where: { $0.id == id })?.text.trimmingCharacters(in: .whitespaces).isEmpty == true
+        store.items.first(where: { $0.id == id })?.isBlank == true
     }
 
     private func addDraft() {

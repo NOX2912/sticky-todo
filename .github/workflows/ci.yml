@@ -1,0 +1,32 @@
+name: CI
+
+# Baut und testet auf macOS, auch für Änderungen aus Sitzungen ohne Swift.
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Swift-Version
+        run: swift --version
+      - name: Bauen ohne Warnungen
+        run: |
+          swift build 2>&1 | tee build.log
+          if grep -E ": warning: " build.log; then
+            echo "::error::swift build meldet Warnungen"
+            exit 1
+          fi
+      - name: Tests
+        run: swift test
+      - name: App bauen (Universal-Binary)
+        run: |
+          ./build.sh
+          lipo "build/To Do.app/Contents/MacOS/StickyToDo" -verify_arch arm64 x86_64

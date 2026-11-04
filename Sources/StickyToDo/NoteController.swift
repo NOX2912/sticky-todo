@@ -42,6 +42,7 @@ final class NoteController: NSObject, NSWindowDelegate {
 
         let host = NSHostingView(rootView: NoteView(
             id: id, store: store, settings: settings, updater: updater,
+            activate: { [weak self] in self?.show() },
             openSettings: { [weak self] in self?.openSettings() }, newNote: newNote, deleteNote: delete))
         host.sizingOptions = []
         window.contentView = host
@@ -49,9 +50,9 @@ final class NoteController: NSObject, NSWindowDelegate {
         window.initialFirstResponder = host
 
         if !window.setFrameUsingName(id.windowName) {
-            if let previous {
+            if let previous, let screen = (previous.screen ?? NSScreen.main)?.visibleFrame {
                 // Neue Notizen leicht versetzt über die aktuelle legen, damit man sie sofort sieht.
-                window.setFrame(previous.frame.offsetBy(dx: 30, dy: -30), display: false)
+                window.setFrame(cascadedFrame(from: previous.frame, within: screen), display: false)
             } else if let screen = NSScreen.main?.visibleFrame {
                 window.setFrameOrigin(NSPoint(x: screen.maxX - window.frame.width - 40,
                                               y: screen.maxY - window.frame.height - 40))
@@ -97,6 +98,9 @@ final class NoteController: NSObject, NSWindowDelegate {
         onActivate(self)
     }
 
+    /// Auf dem Bildschirm, also weder geschlossen noch im Dock
+    var isVisible: Bool { window.isVisible && !window.isMiniaturized }
+
     func show() {
         if window.isMiniaturized { window.deminiaturize(nil) }
         NSApp.activate()
@@ -130,4 +134,16 @@ final class NoteController: NSObject, NSWindowDelegate {
         window.close()
         UserDefaults.standard.removeObject(forKey: "NSWindow Frame \(id.windowName)")
     }
+}
+
+/// Platz für eine neue Notiz: 30 pt versetzt zur vorigen, aber nie über den Bildschirmrand hinaus.
+/// Reicht der Platz nach rechts oder unten nicht, geht es in die andere Richtung.
+func cascadedFrame(from previous: NSRect, within screen: NSRect, step: CGFloat = 30) -> NSRect {
+    var frame = previous
+    frame.origin.x += (previous.maxX + step <= screen.maxX) ? step : -step
+    frame.origin.y += (previous.minY - step >= screen.minY) ? -step : step
+    // Ist das Fenster größer als der Bildschirm, bleiben linker Rand und Titelleiste sichtbar.
+    frame.origin.x = max(screen.minX, min(frame.minX, screen.maxX - frame.width))
+    frame.origin.y = min(screen.maxY - frame.height, max(frame.minY, screen.minY))
+    return frame
 }

@@ -28,7 +28,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// IDs der weiteren Notizen; die erste Notiz ist immer da.
     private static let notesKey = "notes"
 
-    private var currentNote: NoteController { activeNote ?? notes[0] }
+    /// Ziel der Menüleisten-Befehle: die zuletzt benutzte Notiz, solange sie sichtbar ist.
+    /// Eine ausgeblendete Notiz soll sich nicht unbemerkt ändern.
+    private var currentNote: NoteController {
+        if let activeNote, activeNote.isVisible { return activeNote }
+        return notes.first { $0.isVisible } ?? notes[0]
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -64,7 +69,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let id = settings.id
         let note = NoteController(
             settings: settings, mainSettings: mainSettings, updater: updater, cascadingFrom: previous,
-            newNote: { [weak self] in self?.newNote() },
+            // Aus dem Kontextmenü: von der angeklickten Notiz ausgehen, nicht von der zuletzt aktiven.
+            newNote: { [weak self] in
+                guard let self, let source = self.notes.first(where: { $0.id == id }) else { return }
+                self.createNote(from: source)
+            },
             // Erst nach dem Kontextmenü, damit das Fenster nicht mitten in dessen Aktion verschwindet.
             delete: id == .main ? nil : { [weak self] in DispatchQueue.main.async { self?.deleteNote(id) } })
         note.onActivate = { [weak self] in self?.activeNote = $0 }
@@ -72,9 +81,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return note
     }
 
-    /// Neue Notiz mit einem Theme, das noch keine andere trägt; Schrift, Ebene usw. kommen von der aktuellen.
     @objc private func newNote() {
-        let source = currentNote
+        createNote(from: currentNote)
+    }
+
+    /// Neue Notiz mit einem Theme, das noch keine andere trägt; Schrift, Ebene usw. kommen von `source`.
+    private func createNote(from source: NoteController) {
         var s = source.settings.settings
         s.theme = ThemePreset.unused(by: notes.map(\.settings.settings.theme)).theme
         s.title = NoteSettings().title
@@ -111,8 +123,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func showNotes() {
-        // Jedes show() macht seine Notiz zur aktiven, deshalb die aktuelle vorher merken.
-        let current = currentNote
+        // Jedes show() macht seine Notiz zur aktiven, deshalb die zuletzt benutzte vorher merken.
+        let current = activeNote ?? notes[0]
         notes.forEach { $0.show() }
         current.show()
     }
@@ -123,7 +135,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func checkForUpdates() {
         Task {
-            await updater.check()
+            var failure: Error?
+            do { try await updater.check() } catch { failure = error }
             NSApp.activate()
             let alert = NSAlert()
             if let release = updater.available {
@@ -132,6 +145,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 alert.addButton(withTitle: tr("Installieren", "Install"))
                 alert.addButton(withTitle: tr("Später", "Later"))
                 if alert.runModal() == .alertFirstButtonReturn { updater.install() }
+            } else if let failure {
+                // Offline oder GitHub-Limit erreicht: nicht als „neueste Version“ melden.
+                alert.messageText = tr("Suche nach Updates fehlgeschlagen", "Could not check for updates")
+                alert.informativeText = failure.localizedDescription
+                alert.runModal()
             } else {
                 alert.messageText = tr("Du hast die neueste Version (\(updater.current)).", "You have the latest version (\(updater.current)).")
                 alert.runModal()

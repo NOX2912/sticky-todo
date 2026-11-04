@@ -1,0 +1,42 @@
+name: Release
+
+# Veröffentlicht mit ./build.sh auf macOS, z. B. aus einer Sitzung ohne Mac.
+# beta: Pre-Release, der Auto-Updater sieht es nicht. release: Auto-Update für alle. promote: Beta zum Release machen.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version, z. B. 2.1
+        required: true
+      channel:
+        description: beta, release oder promote
+        type: choice
+        options: [beta, release, promote]
+        default: beta
+
+permissions:
+  contents: write
+
+concurrency: release
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: master
+      - name: Git-Identität
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Veröffentlichen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANNEL: ${{ inputs.channel }}
+          VERSION: ${{ inputs.version }}
+        run: ./build.sh "$CHANNEL" "$VERSION"
