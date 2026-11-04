@@ -18,13 +18,15 @@ final class Updater: ObservableObject {
     private var timer: Timer?
 
     func start() {
-        Task { await check() }
+        Task { try? await check() }
         timer = Timer.scheduledTimer(withTimeInterval: 24 * 60 * 60, repeats: true) { [weak self] _ in
-            Task { await self?.check() }
+            Task { try? await self?.check() }
         }
     }
 
-    func check() async {
+    /// Wirft, wenn GitHub nicht erreichbar ist oder ablehnt (offline, Rate-Limit),
+    /// damit „Nach Updates suchen …“ das nicht als „neueste Version“ meldet.
+    func check() async throws {
         struct Response: Decodable {
             struct Asset: Decodable {
                 let name: String
@@ -33,11 +35,14 @@ final class Updater: ObservableObject {
             let tagName: String
             let assets: [Asset]
         }
+        let (data, response) = try await URLSession.shared.data(from: latestRelease)
+        if let status = (response as? HTTPURLResponse)?.statusCode, status != 200 {
+            throw UpdateError.server(status: status)
+        }
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        guard let (data, _) = try? await URLSession.shared.data(from: latestRelease),
-              let release = try? decoder.decode(Response.self, from: data),
-              let zip = release.assets.first(where: { $0.name.hasSuffix(".zip") }) else { return }
+        let release = try decoder.decode(Response.self, from: data)
+        guard let zip = release.assets.first(where: { $0.name.hasSuffix(".zip") }) else { return }
         let version = release.tagName.trimmingCharacters(in: CharacterSet(charactersIn: "v"))
         if version.compare(current, options: .numeric) == .orderedDescending {
             available = Release(version: version, zip: zip.browserDownloadUrl)
@@ -62,8 +67,17 @@ final class Updater: ObservableObject {
     }
 
     private func install(_ release: Release) async throws {
+        let target = Bundle.main.bundleURL
+        // Direkt aus dem Download-Ordner gestartet, läuft die App an einem schreibgeschützten Ort
+        // (App Translocation) und kann sich dort nicht ersetzen.
+        if target.path.contains("/AppTranslocation/") { throw UpdateError.translocated }
+
         let (zip, _) = try await URLSession.shared.download(from: release.zip)
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: zip) }
+        // Auf demselben Volume wie die App entpacken, sonst kann replaceItemAt sie nicht verschieben.
+        let folder = try FileManager.default.url(
+            for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: target, create: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
         try run("/usr/bin/ditto", "-x", "-k", zip.path, folder.path)
         guard let app = try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
             .first(where: { $0.pathExtension == "app" }) else {
@@ -71,7 +85,6 @@ final class Updater: ObservableObject {
         }
         try run("/usr/bin/xattr", "-cr", app.path)
 
-        let target = Bundle.main.bundleURL
         _ = try FileManager.default.replaceItemAt(target, withItemAt: app)
 
         // Neue Version starten, sobald diese beendet ist
@@ -89,5 +102,22 @@ final class Updater: ObservableObject {
         try process.run()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else { throw CocoaError(.fileWriteUnknown) }
+    }
+}
+
+/// Update-Fehler mit verständlicher Meldung
+enum UpdateError: LocalizedError {
+    case server(status: Int)
+    case translocated
+
+    var errorDescription: String? {
+        switch self {
+        case .server(let status):
+            return tr("GitHub hat mit Status \(status) geantwortet. Bitte später erneut versuchen.",
+                      "GitHub responded with status \(status). Please try again later.")
+        case .translocated:
+            return tr("Bitte zieh „To Do“ zuerst in den Programme-Ordner und öffne die App von dort.",
+                      "Please move “To Do” to your Applications folder first and open it from there.")
+        }
     }
 }

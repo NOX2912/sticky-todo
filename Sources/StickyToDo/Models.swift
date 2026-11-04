@@ -1,10 +1,27 @@
 import AppKit
 import SwiftUI
 
-struct TodoItem: Identifiable, Codable, Equatable {
+struct TodoItem: Identifiable, Equatable {
     var id = UUID()
     var text: String
     var done = false
+
+    /// Leer gelassene Zeile, die nicht gespeichert bleiben soll
+    var isBlank: Bool { text.trimmingCharacters(in: .whitespaces).isEmpty }
+}
+
+extension TodoItem: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case id, text, done
+    }
+
+    /// Fehlende Felder fallen auf Standardwerte zurück. Sonst macht ein neues Feld alle gespeicherten To-Dos unlesbar.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.value(.id) ?? UUID()
+        text = c.value(.text) ?? ""
+        done = c.value(.done) ?? false
+    }
 }
 
 /// Ablage im Application-Support-Ordner, z. B. ~/Library/Application Support/StickyToDo
@@ -40,13 +57,26 @@ final class TodoStore: ObservableObject {
 
     private let url: URL
     /// Nach dem Löschen der Notiz nichts mehr schreiben, sonst entsteht die Datei beim Schließen des Fensters neu.
-    private var deleted = false
+    /// Ebenso, wenn eine unlesbare Datei nicht beiseitegelegt werden konnte: Speichern würde sie überschreiben.
+    private var canSave = true
 
-    init(id: NoteID) {
-        url = Storage.directory.appendingPathComponent(id.todosFile)
-        if let data = try? Data(contentsOf: url),
-           let decoded = try? JSONDecoder().decode([TodoItem].self, from: data) {
-            items = decoded
+    convenience init(id: NoteID) {
+        self.init(url: Storage.directory.appendingPathComponent(id.todosFile))
+    }
+
+    init(url: URL) {
+        self.url = url
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        do {
+            let decoded = try JSONDecoder().decode([TodoItem].self, from: Data(contentsOf: url))
+            // Leere Zeilen, die beim Beenden noch offen waren, nicht wieder anzeigen.
+            items = decoded.filter { !$0.isBlank }
+        } catch {
+            // Nie über eine unlesbare Datei speichern, sondern sie zur Seite legen, damit keine To-Dos verloren gehen.
+            let backup = url.deletingPathExtension()
+                .appendingPathExtension("unreadable-\(Int(Date().timeIntervalSince1970))")
+                .appendingPathExtension(url.pathExtension)
+            canSave = (try? FileManager.default.moveItem(at: url, to: backup)) != nil
         }
     }
 
@@ -67,12 +97,12 @@ final class TodoStore: ObservableObject {
     }
 
     func deleteFile() {
-        deleted = true
+        canSave = false
         try? FileManager.default.removeItem(at: url)
     }
 
     private func save() {
-        guard !deleted, let data = try? JSONEncoder().encode(items) else { return }
+        guard canSave, let data = try? JSONEncoder().encode(items) else { return }
         try? data.write(to: url, options: .atomic)
     }
 }

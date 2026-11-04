@@ -87,8 +87,10 @@ struct SettingsView: View {
                 Slider(value: $settings.settings.padding, in: 8...60) { Text(tr("Innenabstand", "Padding")) }
                 Slider(value: $settings.settings.opacity, in: 0.4...1) { Text(tr("Deckkraft", "Opacity")) }
                 Toggle(tr("Fensterknöpfe anzeigen", "Show window buttons"), isOn: $settings.settings.showWindowButtons)
-                Toggle(tr("Beim Anmelden öffnen", "Open at login"), isOn: $launchAtLogin)
-                    .onChange(of: launchAtLogin) { _, enabled in setLaunchAtLogin(enabled) }
+                // Eigene Bindung statt onChange: Das Zurücksetzen nach einem Fehler darf nicht erneut umschalten.
+                Toggle(tr("Beim Anmelden öffnen", "Open at login"), isOn: Binding(
+                    get: { launchAtLogin },
+                    set: { setLaunchAtLogin($0) }))
             }
 
             if let error {
@@ -97,6 +99,10 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(minWidth: 420, minHeight: 500)
+        // Der Autostart gilt für die ganze App, jede Notiz hat aber ihr eigenes Einstellungsfenster.
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            launchAtLogin = SMAppService.mainApp.status == .enabled
+        }
     }
 
     private func presetButton(_ preset: ThemePreset) -> some View {
@@ -171,7 +177,12 @@ struct SettingsView: View {
             error = nil
         } catch {
             self.error = tr("Autostart konnte nicht geändert werden: ", "Could not change launch at login: ") + error.localizedDescription
-            launchAtLogin = SMAppService.mainApp.status == .enabled
         }
+        let status = SMAppService.mainApp.status
+        if enabled && status == .requiresApproval {
+            error = tr("Bitte in den Systemeinstellungen unter „Anmeldeobjekte“ erlauben.",
+                       "Please allow it in System Settings under “Login Items”.")
+        }
+        launchAtLogin = status == .enabled
     }
 }
