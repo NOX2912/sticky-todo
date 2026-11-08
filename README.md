@@ -8,6 +8,8 @@ Includes 14 themes and lets you customize the background, card, decorations, fon
 
 ## Download
 
+Website: **[nox2912.github.io/sticky-todo](https://nox2912.github.io/sticky-todo/)**
+
 **[⬇ Download the latest version (ToDo.zip)](https://github.com/NOX2912/sticky-todo/releases/latest/download/ToDo.zip)**
 
 Unzip it and move **To Do.app** to your Applications folder. Requires macOS 14 or later. All versions are listed on the [releases page](https://github.com/NOX2912/sticky-todo/releases).

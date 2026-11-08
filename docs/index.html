@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sticky ToDo · Haftnotiz für den Mac</title>
+<meta name="description" content="Eine To-Do-Haftnotiz für den macOS-Schreibtisch. Kostenlos, Open Source, 14 Designs. Für macOS 14 oder neuer.">
+<link rel="icon" href="assets/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="scrollcraft.css">
+<style>
+:root {
+  --sc-canvas: #E9E7E3;
+  --sc-surface: #F9F8F6;
+  --sc-ink: #1E1F23;
+  --sc-ink-soft: #565862;
+  --sc-accent: #1E1F23;
+  --sc-accent-ink: #FFFFFF;
+  --sc-font-display: "Geist", system-ui, sans-serif;
+  --sc-font-text: "Geist", system-ui, sans-serif;
+  --os: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  --r: 10px;
+  --bar: 30px;
+  --note-w: clamp(250px, 23vw, 316px);
+  --note-h: calc(var(--note-w) * 1.14);
+  --note-x: clamp(24px, 5vw, 84px);
+  --col: calc(var(--note-x) + var(--note-w) + clamp(40px, 6vw, 110px));
+  --win-shadow: 0 1px 0 rgba(255,255,255,.7) inset, 0 18px 40px -12px rgba(40,38,52,.28), 0 2px 6px rgba(40,38,52,.12);
+}
+body { background: var(--sc-canvas); color: var(--sc-ink); overflow-x: clip; }
+
+/* ---------- Schreibtisch ---------- */
+.wallpaper {
+  position: fixed; inset: -4vh -2vw; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(60vw 50vh at 18% 40%, rgba(255,255,255,.75), transparent 70%),
+    radial-gradient(50vw 60vh at 85% 80%, rgba(203,207,224,.55), transparent 70%),
+    radial-gradient(circle, #CFCCC6 1px, transparent 1.4px) 0 0 / 22px 22px,
+    var(--sc-canvas);
+  will-change: transform;
+}
+
+/* ---------- Menüleiste ---------- */
+.menubar {
+  position: fixed; inset: 0 0 auto 0; height: var(--bar); z-index: 30;
+  display: flex; align-items: center; gap: 4px; padding-inline: 10px;
+  font: 500 13px/1 var(--os); color: #1d1d1f;
+  background: rgba(246,245,243,.72); backdrop-filter: saturate(1.6) blur(18px); -webkit-backdrop-filter: saturate(1.6) blur(18px);
+  box-shadow: 0 1px 0 rgba(0,0,0,.06);
+}
+.menubar a { text-decoration: none; padding: 5px 9px; border-radius: 5px; white-space: nowrap; transition: background-color 140ms var(--sc-ease-out); }
+.menubar a:hover { background: rgba(0,0,0,.07); }
+.menubar .app { display: flex; align-items: center; gap: 7px; font-weight: 700; }
+.menubar .app img { width: 17px; height: 17px; }
+.menubar nav { display: flex; gap: 2px; }
+.menubar .right { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.menubar .extra { display: flex; align-items: center; gap: 6px; padding: 5px 9px; font-variant-numeric: tabular-nums; }
+.menubar .extra svg { width: 15px; height: 15px; }
+.menubar .get { background: var(--sc-accent); color: var(--sc-accent-ink); font-weight: 600; padding: 5px 11px; border-radius: 6px; }
+.menubar .get:hover { background: #3a3b42; }
+
+/* ---------- Fenster (Vordergrund im Hero) ---------- */
+.windows { position: fixed; inset: 0; z-index: 8; pointer-events: none; }
+.win {
+  position: absolute; background: var(--sc-surface); border-radius: var(--r); box-shadow: var(--win-shadow);
+  overflow: hidden; will-change: transform;
+}
+.win__bar { height: 30px; display: flex; align-items: center; gap: 7px; padding-inline: 12px; background: #EFEDEA; border-bottom: 1px solid #E2DFDA; font: 600 12px var(--os); color: #6c6a72; }
+.win__bar i { width: 11px; height: 11px; border-radius: 50%; background: #D5D2CD; flex: none; }
+.win__bar span { margin-left: 8px; }
+.win__body { padding: 16px; display: grid; gap: 10px; }
+.win__body b { display: block; height: 9px; border-radius: 5px; background: #E6E3DE; }
+.win__body b.s { width: 55%; } .win__body b.m { width: 78%; }
+.win__body b.h { height: 14px; width: 40%; background: #DAD7D1; }
+.win__body .ph { height: 96px; border-radius: 6px; background: linear-gradient(135deg, #DCE0EA, #E9E2DA); }
+/* Die Fenster bleiben links von der Überschrift: rechter Rand höchstens Notiz + 30px */
+.w1 { left: calc(var(--note-x) - 40px); top: 15vh; width: calc(var(--note-w) * .92 + 40px); height: 40vh; }
+.w2 { left: calc(var(--note-x) + var(--note-w) * .22); top: 50vh; width: calc(var(--note-w) * .78 + 30px); height: 36vh; }
+.w3 { left: calc(var(--note-x) + var(--note-w) * .5); top: 27vh; width: calc(var(--note-w) * .5 + 20px); height: 27vh; }
+
+/* ---------- Notiz ---------- */
+.note {
+  --bg: #AAB2CC; --pat: #F2C4CB; --pat2: #F8D79E; --card: #EAE5DA; --text: #3D434F; --check: #8F8A62;
+  position: fixed; z-index: 6; left: var(--note-x); top: calc(50% + var(--bar) / 2); width: var(--note-w); height: var(--note-h);
+  translate: 0 -50%; border-radius: 10px; color: var(--text); font-family: var(--os);
+  box-shadow: 0 22px 44px -16px rgba(40,38,52,.38), 0 3px 8px rgba(40,38,52,.14);
+  will-change: transform;
+}
+.note.flip { animation: flip 260ms var(--sc-ease-out); }
+@keyframes flip { from { transform: scale(.975) rotate(-.6deg); } }
+.note__bg { position: absolute; inset: 0; border-radius: inherit; background: var(--bg); overflow: hidden; }
+.note__bg::after { content: ""; position: absolute; inset: 0; background-size: cover; }
+.note[data-bg="stripes"] .note__bg { background: repeating-linear-gradient(90deg, var(--bg) 0 16px, var(--pat) 16px 32px); }
+.note[data-bg="stripes"][data-stripe="narrow"] .note__bg { background: repeating-linear-gradient(90deg, var(--bg) 0 7px, var(--pat) 7px 14px); }
+.note[data-bg="stripes"][data-stripe="pinstripe"] .note__bg { background: repeating-linear-gradient(90deg, var(--bg) 0 14px, var(--pat) 14px 16px); }
+.note[data-bg="stripes"][data-stripe="candy"] .note__bg { background: repeating-linear-gradient(90deg, var(--bg) 0 14px, var(--pat) 14px 28px, var(--bg) 28px 42px, var(--pat2) 42px 56px); }
+.note[data-bg="dots"] .note__bg { background: radial-gradient(circle, var(--pat) 2.4px, transparent 2.9px) 4px 4px / 17px 17px, var(--bg); }
+.note[data-bg="zebra"] .note__bg::after { background-image: var(--zebra); }
+.note[data-bg="crumpled"] .note__bg::after { background-image: var(--crumple); mix-blend-mode: multiply; opacity: .75; }
+
+.note__card { position: absolute; inset: 40px 16px 16px; background: var(--card); display: none; box-shadow: 0 2px 5px rgba(0,0,0,.16); }
+.note:not([data-card="none"]) .note__card { display: block; }
+.note[data-card="paper"] .note__card { rotate: -.5deg; }
+.note[data-card="torn"] .note__card { clip-path: var(--torn); filter: drop-shadow(0 2px 2px rgba(0,0,0,.12)); box-shadow: none; }
+.note[data-card="stamp"] .note__card {
+  padding: 7px; box-shadow: none; filter: drop-shadow(0 2px 3px rgba(0,0,0,.18));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, radial-gradient(circle at 7px 7px, transparent 4px, #000 4.6px) -7px -7px / 14px 14px;
+          mask: linear-gradient(#000 0 0) content-box, radial-gradient(circle at 7px 7px, transparent 4px, #000 4.6px) -7px -7px / 14px 14px;
+}
+.note[data-card="lace"] .note__card {
+  padding: 8px; box-shadow: none; filter: drop-shadow(0 2px 3px rgba(0,0,0,.18));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, radial-gradient(circle at 8px 8px, #000 6px, transparent 6.6px) 0 0 / 16px 16px;
+          mask: linear-gradient(#000 0 0) content-box, radial-gradient(circle at 8px 8px, #000 6px, transparent 6.6px) 0 0 / 16px 16px;
+}
+.deco { position: absolute; pointer-events: none; display: none; }
+.deco-star { width: 38px; top: 26px; right: 6px; rotate: 14deg; filter: drop-shadow(0 2px 2px rgba(0,0,0,.2)); }
+.note:not([data-stars="none"]) .deco-star { display: block; }
+.deco-clip { width: 22px; top: 22px; left: 30px; rotate: -6deg; filter: drop-shadow(1px 2px 1px rgba(0,0,0,.25)); }
+.note[data-clip="silver"] .deco-clip, .note[data-clip="gold"] .deco-clip { display: block; }
+.deco-board { width: 86px; height: 26px; top: 28px; left: 50%; translate: -50% 0; border-radius: 6px; background: linear-gradient(#55524d, #33312e); box-shadow: 0 3px 4px rgba(0,0,0,.3); }
+.deco-board::after { content: ""; position: absolute; left: 50%; top: 6px; width: 20px; height: 8px; translate: -50% 0; border-radius: 4px; background: var(--card); }
+.note[data-clip="clipboard"] .deco-board { display: block; }
+.deco-tape { width: 92px; height: 24px; top: 30px; left: 2px; rotate: -14deg; opacity: .85;
+  background: repeating-linear-gradient(45deg, var(--pat) 0 6px, color-mix(in srgb, var(--pat) 70%, white) 6px 12px);
+  -webkit-mask: conic-gradient(from -45deg at left, #0000 25%, #000 0) 0 0 / 51% 6px, conic-gradient(from 135deg at right, #0000 25%, #000 0) 100% 0 / 51% 6px;
+          mask: conic-gradient(from -45deg at left, #0000 25%, #000 0) 0 0 / 51% 6px, conic-gradient(from 135deg at right, #0000 25%, #000 0) 100% 0 / 51% 6px; }
+.note.x-washiTape .deco-tape { display: block; }
+.deco-stickers { right: 22px; bottom: 22px; width: 64px; }
+.note.x-starStickers .deco-stickers { display: block; }
+.deco-heart { right: 18px; bottom: 18px; width: 40px; filter: drop-shadow(0 2px 2px rgba(0,0,0,.22)); }
+.note.x-heartButton .deco-heart { display: block; }
+
+.note__content { position: absolute; inset: 0; padding: 40px 20px 18px; display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+.note:not([data-card="none"]) .note__content { padding: 58px 32px 28px; }
+.note__title { margin: 0; font: 700 22px/1.15 var(--os); letter-spacing: -.01em; outline: none; border-radius: 4px; cursor: text; }
+.note__title:focus-visible { box-shadow: 0 0 0 2px var(--check); }
+.note__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; overflow-y: auto; scrollbar-width: none; }
+.note__list li { display: flex; align-items: flex-start; gap: 8px; font-size: 15px; line-height: 1.25; }
+.note__list li a, .note__list li span { color: inherit; text-decoration: none; padding-top: 1px; }
+.note__list li a:hover { text-decoration: underline; text-underline-offset: .2em; }
+.chk {
+  flex: none; width: 18px; height: 18px; padding: 0; border-radius: 50%; border: 1.5px solid var(--check);
+  background: rgba(255,255,255,.35); cursor: pointer; display: grid; place-items: center; text-decoration: none !important;
+  transition: background-color 160ms var(--sc-ease-out), transform 120ms var(--sc-ease-out);
+}
+.chk svg { width: 10px; height: 10px; opacity: 0; transform: scale(.4); }
+.chk:active { transform: scale(.9); }
+.done > .chk { background: var(--check); }
+.done > .chk svg { opacity: 1; transform: none; transition: transform 280ms cubic-bezier(.34,1.8,.5,1), opacity 120ms; }
+.note__list .del { margin-left: auto; border: 0; background: none; color: inherit; opacity: 0; cursor: pointer; font-size: 15px; line-height: 1; padding: 0 2px; }
+.note__list li:hover .del, .note__list .del:focus-visible { opacity: .6; }
+@media (hover: none) { .note__list .del { opacity: .6; } }
+.newrow { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+.newrow i { width: 18px; height: 18px; border-radius: 50%; border: 1.5px dashed var(--check); opacity: .55; flex: none; }
+.newrow input { flex: 1; min-width: 0; border: 0; background: none; padding: 2px 0; font: inherit; color: inherit; outline: none; }
+.newrow input::placeholder { color: inherit; opacity: .5; }
+.newrow:focus-within i { opacity: 1; }
+.note__dock { display: none; }
+
+/* ---------- Inhalt ---------- */
+main { position: relative; z-index: 4; }
+.col { padding-left: var(--col); padding-right: clamp(20px, 5vw, 80px); }
+.window {
+  background: var(--sc-surface); border-radius: var(--r); box-shadow: var(--win-shadow); max-width: 640px;
+}
+.window__bar { height: 34px; display: flex; align-items: center; gap: 7px; padding-inline: 14px; border-bottom: 1px solid #E6E3DE; font: 600 12.5px var(--os); color: #6c6a72; }
+.window__bar i { width: 11px; height: 11px; border-radius: 50%; background: #DAD7D2; flex: none; }
+.window__bar span { flex: 1; text-align: center; margin-right: 54px; }
+.window__body { padding: clamp(22px, 3vw, 36px); }
+h1, h2 { font-family: var(--sc-font-display); font-weight: 650; letter-spacing: -.028em; line-height: 1.04; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2.3rem, 4.4vw, 4.1rem); max-width: 13ch; }
+h2 { font-size: clamp(1.7rem, 2.7vw, 2.5rem); max-width: 18ch; }
+.lede { font-size: clamp(1.05rem, 1.25vw, 1.2rem); line-height: 1.55; color: var(--sc-ink-soft); max-width: 40ch; margin: 18px 0 0; text-wrap: pretty; }
+p { text-wrap: pretty; }
+.btn {
+  display: inline-flex; align-items: center; gap: 10px; background: var(--sc-accent); color: var(--sc-accent-ink);
+  font: 600 16px/1 var(--sc-font-text); padding: 15px 22px; border-radius: 10px; text-decoration: none; white-space: nowrap;
+  box-shadow: 0 1px 0 rgba(255,255,255,.18) inset, 0 10px 22px -10px rgba(20,20,30,.55);
+  transition: transform 140ms var(--sc-ease-out), background-color 160ms var(--sc-ease-out);
+}
+.btn svg { width: 18px; height: 18px; }
+.btn:hover { background: #34353c; }
+.btn:active { transform: translateY(1px) scale(.98); }
+.meta { margin: 14px 0 0; font-size: 14px; color: var(--sc-ink-soft); font-variant-numeric: tabular-nums; }
+
+/* Hero */
+.hero [data-sc-stage] { display: flex; align-items: center; height: 100vh; height: 100svh; }
+.hero__copy { padding-top: var(--bar); }
+.hero__copy .btn { margin-top: 30px; }
+
+/* Ausprobieren: absichtlich still */
+.try { padding-block: 24vh 22vh; }
+.try p.big { font-size: clamp(1.35rem, 2vw, 1.75rem); line-height: 1.4; letter-spacing: -.012em; max-width: 30ch; margin: 18px 0 0; }
+.try kbd { font: 600 .82em var(--os); background: var(--sc-surface); border: 1px solid #D9D6D0; border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; }
+.try .fine { font-size: 14px; color: var(--sc-ink-soft); margin: 22px 0 0; }
+.only-m { display: none; }
+
+/* Designs (Peak) */
+.designs [data-sc-stage] { display: flex; align-items: center; height: 100vh; height: 100svh; }
+.designs .window { width: 100%; max-width: 620px; margin-top: var(--bar); }
+.designs .lede { margin-bottom: 26px; }
+.swatches { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; align-items: start; margin: 0; padding: 0; list-style: none; }
+.sw { display: grid; gap: 6px; justify-items: center; background: none; border: 0; padding: 0; cursor: pointer; font: 500 11.5px/1.2 var(--os); color: var(--sc-ink-soft); text-align: center; }
+.sw { width: 100%; }
+.sw i { width: 100%; aspect-ratio: 1 / 1.14; border-radius: 7px; box-shadow: 0 0 0 1px rgba(0,0,0,.08); transition: transform 160ms var(--sc-ease-out), box-shadow 160ms var(--sc-ease-out); }
+.sw[aria-pressed="true"] { color: var(--sc-ink); font-weight: 650; }
+.sw[aria-pressed="true"] i { box-shadow: 0 0 0 2px var(--sc-surface), 0 0 0 4px var(--sc-ink); transform: translateY(-2px); }
+@media (hover: hover) and (pointer: fine) { .sw:hover i { transform: translateY(-2px); } }
+.parts { margin: 22px 0 0; padding-top: 16px; border-top: 1px solid #E6E3DE; font: 500 13.5px/1.5 var(--os); color: var(--sc-ink-soft); min-height: 3em; }
+.parts strong { color: var(--sc-ink); font-weight: 650; }
+
+/* Funktionen */
+.features { padding-block: 22vh 18vh; }
+.features h2 { margin-bottom: 34px; }
+.keys { margin: 0; display: grid; grid-template-columns: max-content 1fr; column-gap: 28px; max-width: 620px; }
+.keys > div { display: contents; }
+.keys dt, .keys dd { padding: 15px 0; border-top: 1px solid #D9D6D0; margin: 0; }
+.keys dt { font: 650 15px/1.45 var(--os); white-space: nowrap; }
+.keys dd { color: var(--sc-ink-soft); font-size: 16px; line-height: 1.45; }
+
+/* Installieren */
+.install [data-sc-stage] { display: flex; flex-direction: column; justify-content: center; height: 100vh; height: 100svh; padding-top: var(--bar); }
+.install .window { max-width: 600px; }
+.install .lede { margin-bottom: 26px; }
+.steps { margin: 30px 0 0; padding: 0; list-style: none; counter-reset: s; display: grid; gap: 14px; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 26px 1fr; gap: 12px; font-size: 15.5px; line-height: 1.5; }
+.steps li::before { content: counter(s); width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--sc-ink); display: grid; place-items: center; font: 650 12px var(--os); margin-top: 1px; }
+.steps b { font-weight: 650; }
+.links { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 26px 0 0; padding-top: 18px; border-top: 1px solid #E6E3DE; font-size: 14px; color: var(--sc-ink-soft); }
+.links a { color: var(--sc-ink); }
+.foot { margin-top: 28px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--sc-ink-soft); }
+.foot img { width: 22px; height: 22px; }
+
+/* ---------- Telefon ---------- */
+@media (max-width: 899px) {
+  :root { --note-w: auto; --note-h: min(300px, 44svh); }
+  .menubar nav, .menubar .gh { display: none; }
+  .col { padding-inline: 18px; }
+  .note {
+    left: 14px; right: 14px; top: auto; bottom: 12px; translate: none;
+    transition: transform 420ms var(--sc-ease-out);
+    transform: translateY(calc(100% - 58px));
+  }
+  body.note-open .note { transform: none; }
+  .note.flip { animation: none; }
+  .newrow input { font-size: 16px; }
+  .note__dock {
+    display: flex; position: absolute; top: 10px; right: 12px; z-index: 2; align-items: center; gap: 6px;
+    border: 0; background: rgba(255,255,255,.45); color: inherit; font: 600 13px var(--os); padding: 6px 10px; border-radius: 8px; cursor: pointer;
+  }
+  .note__content { padding-top: 16px; }
+  .note:not([data-card="none"]) .note__content { padding: 50px 30px 22px; }
+  .note__title { font-size: 20px; }
+  .windows .w1 { left: -8vw; top: auto; bottom: 18svh; width: 72vw; height: 22svh; }
+  .windows .w2 { left: 38vw; top: auto; bottom: -4svh; width: 70vw; height: 26svh; }
+  .windows .w3 { display: none; }
+  .hero [data-sc-stage] { align-items: flex-start; }
+  .hero__copy { padding-top: calc(var(--bar) + 7svh); }
+  h1 { font-size: clamp(2rem, 9vw, 2.6rem); }
+  .lede { margin-top: 14px; }
+  .hero__copy .btn { margin-top: 22px; }
+  .only-d { display: none; } .only-m { display: inline; }
+  .try { padding-block: 14vh 18vh; }
+  .designs [data-sc-stage] { align-items: flex-start; padding-top: calc(var(--bar) + 12px); }
+  .designs .window { margin-top: 0; }
+  .designs .window__bar { display: none; }
+  .designs .window__body { padding: 16px 16px 14px; }
+  .designs .lede { font-size: 15px; margin: 8px 0 14px; }
+  .designs h2 { font-size: 1.5rem; }
+  .swatches { gap: 6px; }
+  .sw .nm { display: none; }
+  .parts { margin-top: 10px; padding-top: 10px; font-size: 12.5px; }
+  .features { padding-bottom: 14vh; }
+  .keys { grid-template-columns: 1fr; }
+  .keys dd { border-top: 0; padding-top: 0; }
+  .install [data-sc-stage] { justify-content: flex-start; padding-top: calc(var(--bar) + 14px); padding-bottom: 76px; }
+  .install .window__bar { display: none; }
+  .install .window__body { padding: 20px 18px; }
+  .steps { margin-top: 20px; gap: 10px; }
+  .steps li { font-size: 14.5px; }
+  .install .links { margin-top: 18px; }
+  .foot { margin-top: 14px; }
+}
+@media (max-width: 899px) and (max-height: 700px) {
+  .install .lede, .install .meta { display: none; }
+  .install .btn { margin-top: 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .note.flip { animation: none; }
+  .note { transition: none; }
+  .done > .chk svg { transition: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="wallpaper" aria-hidden="true"></div>
+
+<header class="menubar">
+  <a class="app" href="#top"><img src="assets/icon.png" alt="" width="17" height="17">To Do</a>
+  <nav aria-label="Abschnitte">
+    <a href="#ausprobieren">Ausprobieren</a>
+    <a href="#designs">Designs</a>
+    <a href="#funktionen">Funktionen</a>
+    <a href="#installieren">Installieren</a>
+  </nav>
+  <div class="right">
+    <span class="extra" title="Erledigte To-Dos auf dieser Seite">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7.2" fill="#1d1d1f"/><path d="M4.8 8.3l2.1 2.1 4.3-4.6" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span data-progress aria-live="polite">0 von 5</span>
+    </span>
+    <a class="gh" href="https://github.com/NOX2912/sticky-todo">GitHub</a>
+    <a class="get" data-dl href="https://github.com/NOX2912/sticky-todo/releases/latest/download/ToDo.zip">To Do laden</a>
+  </div>
+</header>
+
+<aside class="note" id="note" aria-label="Notiz: To-Do-Liste dieser Seite" data-bg="color" data-stripe="even" data-card="none" data-stars="none" data-clip="none">
+  <div class="note__bg"></div>
+  <div class="note__card"></div>
+  <span class="deco deco-tape"></span>
+  <span class="deco deco-board"></span>
+  <svg class="deco deco-clip" viewBox="0 0 22 48" aria-hidden="true"><path d="M7 14V36a5 5 0 0 0 10 0V8a7 7 0 0 0-14 0v30a9 9 0 0 0 18 0V14" fill="none" stroke="var(--clipc)" stroke-width="2.3" stroke-linecap="round"/></svg>
+  <svg class="deco deco-star" viewBox="0 0 40 40" aria-hidden="true"><defs><linearGradient id="sg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--s1)"/><stop offset="1" stop-color="var(--s2)"/></linearGradient></defs><path d="M20 2.5l5.2 11.2 12.3 1.4-9.1 8.4 2.5 12.1L20 29.5 9.1 35.6l2.5-12.1-9.1-8.4 12.3-1.4z" fill="url(#sg)" stroke="var(--s3)" stroke-width="1.3" stroke-dasharray="var(--sd)" stroke-linejoin="round"/></svg>
+  <svg class="deco deco-stickers" viewBox="0 0 64 40" aria-hidden="true"><g fill="var(--check)"><path d="M12 4l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 17.5l-5.4 3 1.2-6-4.5-4.2 6.1-.7z"/><path d="M44 16l2 4.2 4.6.5-3.4 3.1.9 4.5-4.1-2.3-4.1 2.3.9-4.5-3.4-3.1 4.6-.5z" opacity=".75"/><path d="M28 26l1.4 3 3.3.4-2.4 2.2.6 3.2-2.9-1.6-2.9 1.6.6-3.2-2.4-2.2 3.3-.4z" opacity=".6"/></g></svg>
+  <svg class="deco deco-heart" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="18" fill="#E2566E"/><circle cx="20" cy="20" r="14.5" fill="none" stroke="#fff" stroke-opacity=".55" stroke-dasharray="2.5 2.5"/><path d="M20 28.5s-8-4.9-8-10.2a4.4 4.4 0 0 1 8-2.5 4.4 4.4 0 0 1 8 2.5c0 5.3-8 10.2-8 10.2z" fill="#fff"/></svg>
+
+  <button class="note__dock" type="button" aria-expanded="false" aria-controls="note-list" aria-label="Notiz auf- oder zuklappen"><span data-progress>0 von 5</span></button>
+  <div class="note__content">
+    <p class="note__title" tabindex="0" role="textbox" aria-label="Überschrift der Notiz, Doppelklick oder Enter zum Umbenennen" title="Doppelklick zum Umbenennen">To Do</p>
+    <ul class="note__list" id="note-list">
+      <li data-step="desk"><button class="chk" type="button" aria-pressed="false"><svg viewBox="0 0 10 10"><path d="M2 5.3l2 2 4-4.5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><a href="#top">Fenster beiseiteschieben</a></li>
+      <li data-step="try"><button class="chk" type="button" aria-pressed="false"><svg viewBox="0 0 10 10"><path d="M2 5.3l2 2 4-4.5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><a href="#ausprobieren">Selbst ein To-Do eintragen</a></li>
+      <li data-step="designs"><button class="chk" type="button" aria-pressed="false"><svg viewBox="0 0 10 10"><path d="M2 5.3l2 2 4-4.5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><a href="#designs">Ein Design aussuchen</a></li>
+      <li data-step="features"><button class="chk" type="button" aria-pressed="false"><svg viewBox="0 0 10 10"><path d="M2 5.3l2 2 4-4.5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><a href="#funktionen">Den Rest überfliegen</a></li>
+      <li data-step="download"><a class="chk" data-dl href="https://github.com/NOX2912/sticky-todo/releases/latest/download/ToDo.zip" aria-label="To Do laden (ToDo.zip herunterladen)"><svg viewBox="0 0 10 10"><path d="M2 5.3l2 2 4-4.5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a href="#installieren">To Do laden</a></li>
+    </ul>
+    <label class="newrow"><i aria-hidden="true"></i><input type="text" placeholder="Neues To-Do" aria-label="Neues To-Do" maxlength="80" enterkeyhint="done"></label>
+  </div>
+</aside>
+
+<div class="windows" aria-hidden="true">
+  <div class="win w1"><div class="win__bar"><i></i><i></i><i></i><span>Wochenbericht</span></div><div class="win__body"><b class="h"></b><b></b><b class="m"></b><b></b><b class="s"></b><div class="ph"></div><b class="m"></b><b></b></div></div>
+  <div class="win w2"><div class="win__bar"><i></i><i></i><i></i><span>Posteingang</span></div><div class="win__body"><b class="h"></b><b class="m"></b><b class="s"></b><b></b><b class="m"></b><b class="s"></b><b></b></div></div>
+  <div class="win w3"><div class="win__bar"><i></i><i></i><i></i><span>Kalender</span></div><div class="win__body"><b class="h"></b><b class="s"></b><b class="m"></b><b></b></div></div>
+</div>
+
+<main id="top">
+
+  <section class="hero" data-sc-act="pin" data-sc-span="1.7">
+    <div data-sc-stage class="col">
+      <div class="hero__copy">
+        <h1>Deine To‑Dos, direkt auf dem Schreibtisch.</h1>
+        <p class="lede">Eine Haftnotiz für den Mac. Sie liegt hinter deinen Fenstern wie ein Widget, und du schreibst trotzdem direkt hinein.</p>
+        <a class="btn" data-dl href="https://github.com/NOX2912/sticky-todo/releases/latest/download/ToDo.zip"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v10m0 0l-4-4m4 4l4-4M4 16h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>To Do laden</a>
+        <p class="meta">Kostenlos · macOS 14 oder neuer<span data-live hidden> · Version <span data-version></span></span></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="try col" id="ausprobieren">
+    <div data-sc-in>
+      <h2>Schreib einfach rein.</h2>
+      <p class="big">Die Notiz <span class="only-d">links</span><span class="only-m">unten</span> funktioniert wie in der App. In „Neues To-Do“ tippen, <kbd>Enter</kbd>. Ein Klick auf den Kreis hakt ab, ein Doppelklick auf die Überschrift benennt sie um.</p>
+      <p class="fine">Im Browser nachgebaut. Die echte Notiz liegt danach auf deinem Schreibtisch.</p>
+    </div>
+  </section>
+
+  <section class="designs" id="designs" data-sc-act="pin" data-sc-span="3.4">
+    <div data-sc-stage class="col">
+      <div class="window">
+        <div class="window__bar"><i></i><i></i><i></i><span>Einstellungen · Design</span></div>
+        <div class="window__body">
+          <h2>Vierzehn Designs. Oder dein eigenes.</h2>
+          <p class="lede">Hintergrund, Karte, Deko, Schrift und Farben stellst du einzeln ein, auf Wunsch mit eigenem Bild.</p>
+          <ul class="swatches" aria-label="Designs"></ul>
+          <p class="parts" aria-live="polite"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="features col" id="funktionen">
+    <h2 data-sc-in>Was sie sonst noch kann.</h2>
+    <dl class="keys">
+      <div><dt data-sc-reveal="left" data-sc-reveal-at="0.12 0.3">⌘ N</dt><dd data-sc-reveal="left" data-sc-reveal-at="0.14 0.34">Neue Notiz. Jede hat eigene To-Dos, ein eigenes Design und eine eigene Überschrift.</dd></div>
+      <div><dt data-sc-reveal="left" data-sc-reveal-at="0.17 0.35">Rechtsklick</dt><dd data-sc-reveal="left" data-sc-reveal-at="0.19 0.39">Abhaken, ein To-Do darunter einfügen, Erledigte entfernen.</dd></div>
+      <div><dt data-sc-reveal="left" data-sc-reveal-at="0.22 0.4">Ebene</dt><dd data-sc-reveal="left" data-sc-reveal-at="0.24 0.44">Auf dem Schreibtisch, wie ein normales Fenster oder immer im Vordergrund.</dd></div>
+      <div><dt data-sc-reveal="left" data-sc-reveal-at="0.27 0.45">Sprache</dt><dd data-sc-reveal="left" data-sc-reveal-at="0.29 0.49">Deutsch oder Englisch, umstellbar in den Einstellungen.</dd></div>
+      <div><dt data-sc-reveal="left" data-sc-reveal-at="0.32 0.5">Updates</dt><dd data-sc-reveal="left" data-sc-reveal-at="0.34 0.54">Gibt es eine neue Version, bietet die Notiz sie selbst zum Installieren an.</dd></div>
+      <div><dt data-sc-reveal="left" data-sc-reveal-at="0.37 0.55">Feedback</dt><dd data-sc-reveal="left" data-sc-reveal-at="0.39 0.59">Fehler melden oder Ideen vorschlagen, direkt über das Symbol in der Menüleiste.</dd></div>
+    </dl>
+  </section>
+
+  <section class="install" id="installieren" data-sc-act="pin" data-sc-span="1.1">
+    <div data-sc-stage class="col">
+      <div class="window">
+        <div class="window__bar"><i></i><i></i><i></i><span>To Do installieren</span></div>
+        <div class="window__body">
+          <h2>Laden, entpacken, loslegen.</h2>
+          <a class="btn" style="margin-top:24px" data-dl href="https://github.com/NOX2912/sticky-todo/releases/latest/download/ToDo.zip"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v10m0 0l-4-4m4 4l4-4M4 16h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>To Do laden</a>
+          <p class="meta">ToDo.zip<span data-live hidden><span data-size-wrap> · <span data-size></span></span> · Version <span data-version></span></span> · macOS 14 oder neuer</p>
+          <ol class="steps">
+            <li><span>ZIP öffnen und <b>To Do.app</b> in den Ordner <b>Programme</b> ziehen.</span></li>
+            <li><span>Die App ist nicht notarisiert. Beim ersten Start unter <b>Systemeinstellungen → Datenschutz &amp; Sicherheit</b> auf <b>Dennoch öffnen</b> klicken.</span></li>
+            <li><span>Fertig. Die Notiz liegt auf dem Schreibtisch, Updates kommen von selbst.</span></li>
+          </ol>
+          <p class="links"><span>Kostenlos und Open Source (MIT)</span><a href="https://github.com/NOX2912/sticky-todo">Quellcode</a><a href="https://github.com/NOX2912/sticky-todo/releases">Alle Versionen</a><a href="https://github.com/NOX2912/sticky-todo/issues/new/choose">Fehler melden</a></p>
+        </div>
+      </div>
+      <footer class="foot"><img src="assets/icon.png" alt="" width="22" height="22">Sticky ToDo für macOS</footer>
+    </div>
+  </section>
+
+</main>
+
+<script src="scrollcraft.js"></script>
+<script>ScrollCraft.mount(document.body);</script>
+<script>
+(() => {
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const note = $('#note');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const fine = matchMedia('(hover: hover) and (pointer: fine)').matches;
+  const isPhone = () => innerWidth < 900;
+  const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+
+  /* ---- Die 14 Designs aus Theme.swift ---- */
+  const D = { bg: 'color', c: '#AAB2CC', p: '#F2C4CB', p2: '#F8D79E', st: 'even', card: 'none', cc: '#EAE5DA', stars: 'none', clip: 'none', ex: [], t: '#3D434F', k: '#8F8A62' };
+  const THEMES = [
+    ['Lavendel', {}],
+    ['Papier', { bg: 'stripes', c: '#FBEFEF', p: '#F0BFC6', card: 'paper', cc: '#E9E4D9', stars: 'gold', clip: 'silver', t: '#4A433D', k: '#C9A23A' }],
+    ['Silberstern', { bg: 'stripes', c: '#F9EEEA', p: '#F3C5C6', card: 'torn', cc: '#F1EFE8', stars: 'silver', t: '#55504A', k: '#9C98A3' }],
+    ['Briefmarke', { bg: 'stripes', c: '#F2A9C3', p: '#D94676', st: 'narrow', card: 'stamp', cc: '#F3F1EF', stars: 'felt', ex: ['heartButton'], t: '#5A2A35', k: '#C8364E' }],
+    ['Washi', { bg: 'stripes', c: '#F6F2EC', p: '#97A6C6', st: 'pinstripe', card: 'paper', cc: '#EFE6DD', ex: ['washiTape', 'starStickers'], t: '#5A5058', k: '#C49AAA' }],
+    ['Orange', { bg: 'stripes', c: '#FBF3E4', p: '#F4AE78', p2: '#F8D79E', st: 'candy', card: 'paper', cc: '#E9E4DA', stars: 'stitched', clip: 'silver', t: '#5A4A3A', k: '#E8975A' }],
+    ['Himmel', { bg: 'crumpled', c: '#7FA2C6', card: 'paper', cc: '#E8DDC2', stars: 'gold', clip: 'gold', t: '#4A4030', k: '#C9A23A' }],
+    ['Spitze', { bg: 'dots', c: '#5A392D', p: '#E7DCCD', card: 'lace', cc: '#F4ECDD', t: '#4A3428', k: '#8B5E3C' }],
+    ['Zebra', { bg: 'zebra', c: '#EEE4CF', p: '#161514', card: 'paper', cc: '#E7E3DB', stars: 'gold', clip: 'silver', t: '#3E3A35', k: '#C9A23A' }],
+    ['Zebra Spitze', { bg: 'zebra', c: '#EEE4CF', p: '#161514', card: 'lace', cc: '#EBDDBD', clip: 'clipboard', t: '#4A3E2E', k: '#A47B45' }],
+    ['Butter', { c: '#FFF0A6', t: '#4B4430', k: '#C7A02A' }],
+    ['Minze', { c: '#CBEADB', t: '#2E4A3F', k: '#4E9B7D' }],
+    ['Pfirsich', { c: '#FFD9C4', t: '#5A3B2E', k: '#E07A5F' }],
+    ['Nacht', { c: '#2A2D3A', t: '#E7E9F0', k: '#9CA6FF' }],
+  ].map(([name, o]) => ({ name, ...D, ...o }));
+
+  const LABEL = {
+    bg: { color: 'Farbe', stripes: 'Streifen', dots: 'Punkte', zebra: 'Zebra', crumpled: 'Knitterpapier' },
+    st: { even: '', narrow: 'schmal', pinstripe: 'Nadelstreifen', candy: 'bunt' },
+    card: { none: 'Keine', paper: 'Papier', torn: 'Gerissen', stamp: 'Briefmarke', lace: 'Spitze' },
+    stars: { gold: 'Stern gold', silver: 'Stern silber', stitched: 'Stern gestickt', felt: 'Stern aus Filz' },
+    clip: { silver: 'Büroklammer silber', gold: 'Büroklammer gold', clipboard: 'Klemmbrett' },
+    ex: { washiTape: 'Washi-Tape', starStickers: 'Sternsticker', heartButton: 'Herzknopf' },
+  };
+
+  // Zebra: unregelmäßige, wellige Streifen, deterministisch erzeugt
+  function zebra(color) {
+    let seed = 7; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+    let paths = '';
+    for (let i = -2; i < 13; i++) {
+      const x0 = i * 30 + rnd() * 10, ph = rnd() * 6, ph2 = rnd() * 6, w0 = 7 + rnd() * 7, slant = 0.32;
+      const L = [], R = [];
+      for (let y = -10; y <= 380; y += 15) {
+        const x = x0 + 9 * Math.sin(y / 46 + ph) + slant * y;
+        const w = w0 + 5 * Math.sin(y / 61 + ph2);
+        L.push(`${x.toFixed(1)},${y}`); R.unshift(`${(x + w).toFixed(1)},${y}`);
+      }
+      paths += `<polygon points="${L.concat(R).join(' ')}"/>`;
+    }
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 360" preserveAspectRatio="none"><g fill="${color}" transform="translate(-60 0)">${paths}</g></svg>`;
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+  }
+  const crumple = (() => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 360"><filter id="f"><feTurbulence type="fractalNoise" baseFrequency="0.018" numOctaves="4" seed="3"/><feDiffuseLighting lighting-color="#fff" surfaceScale="4"><feDistantLight azimuth="225" elevation="48"/></feDiffuseLighting></filter><rect width="100%" height="100%" filter="url(#f)"/></svg>`;
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+  })();
+  const torn = (() => {
+    const pts = ['0 0', '100% 0'];
+    for (let i = 20; i >= 0; i--) pts.push(`${i * 5}% calc(100% - ${(i % 2 ? 7 : 1) + (i % 3) * 2}px)`);
+    return `polygon(${pts.join(',')})`;
+  })();
+  note.style.setProperty('--crumple', crumple);
+  note.style.setProperty('--torn', torn);
+
+  const STAR = { gold: ['#F7D774', '#C9962E', '#B8892B', 'none'], silver: ['#F1F2F6', '#9EA4B0', '#8C92A0', 'none'], stitched: ['#F6B4A8', '#EE8F80', '#fff', '2 2'], felt: ['#EF7189', '#D84F6B', '#9E2C46', '2.4 1.8'] };
+  let current = -1;
+  function applyTheme(i, animate = true) {
+    if (i === current) return;
+    current = i;
+    const t = THEMES[i], s = note.style;
+    s.setProperty('--bg', t.c); s.setProperty('--pat', t.p); s.setProperty('--pat2', t.p2);
+    s.setProperty('--card', t.cc); s.setProperty('--text', t.t); s.setProperty('--check', t.k);
+    s.setProperty('--clipc', t.clip === 'gold' ? '#C9A23A' : '#A3A8B3');
+    if (t.stars !== 'none') { const [a, b, c, d] = STAR[t.stars]; s.setProperty('--s1', a); s.setProperty('--s2', b); s.setProperty('--s3', c); s.setProperty('--sd', d); }
+    if (t.bg === 'zebra') s.setProperty('--zebra', zebra(t.p));
+    Object.assign(note.dataset, { bg: t.bg, stripe: t.st, card: t.card, stars: t.stars, clip: t.clip });
+    ['washiTape', 'starStickers', 'heartButton'].forEach(x => note.classList.toggle('x-' + x, t.ex.includes(x)));
+    $$('.sw').forEach((b, j) => b.setAttribute('aria-pressed', String(j === i)));
+    const bits = [`<strong>${t.name}</strong>`, `Hintergrund ${LABEL.bg[t.bg]}${t.bg === 'stripes' && LABEL.st[t.st] ? ' ' + LABEL.st[t.st] : ''}`];
+    if (t.card !== 'none') bits.push(`Karte ${LABEL.card[t.card]}`);
+    if (t.stars !== 'none') bits.push(LABEL.stars[t.stars]);
+    if (t.clip !== 'none') bits.push(LABEL.clip[t.clip]);
+    t.ex.forEach(x => bits.push(LABEL.ex[x]));
+    $('.parts').innerHTML = bits.join(' · ');
+    if (animate && !reduce) { note.classList.remove('flip'); void note.offsetWidth; note.classList.add('flip'); }
+  }
+
+  // Vorschau-Kacheln
+  const sw = $('.swatches');
+  THEMES.forEach((t, i) => {
+    let bg = t.c;
+    if (t.bg === 'stripes') bg = t.st === 'candy' ? `repeating-linear-gradient(90deg, ${t.c} 0 5px, ${t.p} 5px 10px, ${t.c} 10px 15px, ${t.p2} 15px 20px)` : `repeating-linear-gradient(90deg, ${t.c} 0 ${t.st === 'pinstripe' ? '6px' : '5px'}, ${t.p} 0 ${t.st === 'pinstripe' ? '7px' : t.st === 'narrow' ? '7px' : '10px'})`;
+    if (t.bg === 'dots') bg = `radial-gradient(circle, ${t.p} 1.6px, transparent 2px) 0 0/8px 8px, ${t.c}`;
+    if (t.bg === 'zebra') bg = `${zebra(t.p)} center/cover, ${t.c}`;
+    if (t.bg === 'crumpled') bg = `${crumple} center/cover, ${t.c}`;
+    if (t.card !== 'none') bg = `linear-gradient(${t.cc}, ${t.cc}) 50% 72% / 70% 62% no-repeat, ${bg}`;
+    const li = document.createElement('li');
+    li.innerHTML = `<button class="sw" type="button" aria-pressed="false"><i></i></button>`;
+    li.firstChild.insertAdjacentHTML('beforeend', '<span class="nm"></span>');
+    $('.nm', li).textContent = t.name;
+    $('i', li).style.background = bg;
+    li.firstChild.setAttribute('aria-label', 'Design ' + t.name);
+    li.firstChild.addEventListener('click', () => pickTheme(i));
+    sw.append(li);
+  });
+
+  const designs = $('#designs');
+  const slot = i => 0.05 + (i + 0.5) / THEMES.length * 0.88;
+  function pickTheme(i) {
+    const r = designs.getBoundingClientRect();
+    const travel = designs.offsetHeight - innerHeight;
+    const y = scrollY + r.top + travel * slot(i);
+    applyTheme(i); check('designs');
+    scrollTo({ top: y, behavior: reduce ? 'auto' : 'smooth' });
+  }
+
+  /* ---- To-Do-Liste ---- */
+  const list = $('.note__list');
+  const total = () => $$('li', list).length;
+  function updateProgress() {
+    const done = $$('li.done', list).length;
+    $$('[data-progress]').forEach(el => el.textContent = `${done} von ${total()}`);
+  }
+  function setDone(li, on) {
+    li.classList.toggle('done', on);
+    const b = $('.chk', li);
+    if (b.tagName === 'BUTTON') b.setAttribute('aria-pressed', String(on));
+    updateProgress();
+  }
+  function check(step) {
+    const li = $(`[data-step="${step}"]`, list);
+    if (li && !li.classList.contains('done')) setDone(li, true);
+  }
+  list.addEventListener('click', e => {
+    const b = e.target.closest('button.chk');
+    if (b) { const li = b.closest('li'); setDone(li, !li.classList.contains('done')); }
+    const del = e.target.closest('.del');
+    if (del) { del.closest('li').remove(); updateProgress(); input.focus(); }
+  });
+  $$('button.chk', list).forEach(b => b.setAttribute('aria-label', 'Abhaken: ' + b.nextElementSibling.textContent));
+  $$('[data-dl]').forEach(a => a.addEventListener('click', () => check('download')));
+
+  const input = $('.newrow input');
+  input.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    const text = input.value.trim();
+    if (!text) return;
+    const li = document.createElement('li');
+    li.innerHTML = `<button class="chk" type="button" aria-pressed="false"><svg viewBox="0 0 10 10"><path d="M2 5.3l2 2 4-4.5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><span></span><button class="del" type="button">×</button>`;
+    $('span', li).textContent = text;
+    $('.chk', li).setAttribute('aria-label', 'Abhaken: ' + text);
+    $('.del', li).setAttribute('aria-label', 'Löschen: ' + text);
+    // Eigene To-Dos kommen vor „To Do laden“, das bleibt das letzte
+    list.insertBefore(li, $('[data-step="download"]', list));
+    input.value = '';
+    check('try');
+    updateProgress();
+  });
+
+  // Überschrift per Doppelklick umbenennen, wie in der App
+  const title = $('.note__title');
+  const editTitle = () => {
+    title.contentEditable = 'plaintext-only';
+    if (title.contentEditable !== 'plaintext-only') title.contentEditable = 'true';
+    title.focus(); getSelection().selectAllChildren(title);
+  };
+  title.addEventListener('dblclick', editTitle);
+  title.addEventListener('keydown', e => {
+    const editing = title.isContentEditable;
+    if (!editing && (e.key === 'Enter' || e.key === 'F2')) { e.preventDefault(); editTitle(); }
+    else if (editing && (e.key === 'Enter' || e.key === 'Escape')) { e.preventDefault(); title.contentEditable = 'false'; }
+  });
+  title.addEventListener('paste', e => { e.preventDefault(); document.execCommand('insertText', false, e.clipboardData.getData('text/plain').replace(/\s+/g, ' ')); });
+  title.addEventListener('blur', () => { title.contentEditable = 'false'; title.textContent = title.textContent.trim(); if (!title.textContent.trim()) title.textContent = 'To Do'; });
+
+  // Telefon: Notiz auf- und zuklappen
+  const dock = $('.note__dock');
+  let manualOpen = null;
+  dock.addEventListener('click', () => { manualOpen = !document.body.classList.contains('note-open'); setOpen(manualOpen); });
+  function setOpen(on) { document.body.classList.toggle('note-open', on); dock.setAttribute('aria-expanded', String(on)); }
+  note.addEventListener('focusin', () => { if (isPhone() && !document.body.classList.contains('note-open')) { manualOpen = true; setOpen(true); } });
+
+  /* ---- Scroll: Ebenen im Hero, Designs, Abhaken ---- */
+  const hero = $('.hero'), features = $('#funktionen');
+  const wall = $('.wallpaper'), wins = $$('.win');
+  let mx = 0, my = 0, tmx = 0, tmy = 0;
+  if (fine && !reduce) addEventListener('pointermove', e => { tmx = e.clientX / innerWidth - .5; tmy = e.clientY / innerHeight - .5; }, { passive: true });
+  const progress = el => { const r = el.getBoundingClientRect(); return clamp(-r.top / Math.max(1, el.offsetHeight - innerHeight)); };
+  // Wohin jedes Fenster fährt (vw, vh, Grad, Skalierung): verschiedene Tempi = Tiefe
+  const OUT = [[-46, -34, -7, 1.08], [-16, 70, 5, 1.12], [34, -52, 9, 1.05]];
+  const OUT_M = [[-70, 10, -6, 1.06], [60, 30, 6, 1.1], [0, 0, 0, 1]];
+  let lastOpen = null;
+
+  function frame() {
+    mx += (tmx - mx) * 0.08; my += (tmy - my) * 0.08;
+    const hp = progress(hero);
+    const e = 1 - Math.pow(1 - hp, 2.2);
+    const phone = isPhone();
+    wins.forEach((w, i) => {
+      const [x, y, r, sc] = (phone ? OUT_M : OUT)[i];
+      if (reduce) { w.style.opacity = String(1 - clamp(hp * 1.6)); return; }
+      const px = mx * (16 + i * 8), py = my * (10 + i * 6);
+      w.style.transform = `translate(calc(${x * e}vw + ${px}px), calc(${y * e}vh + ${py}px)) rotate(${r * e}deg) scale(${1 + (sc - 1) * e})`;
+      w.style.opacity = String(1 - clamp((hp - .7) / .3));
+    });
+    $('.windows').style.visibility = hp >= 1 ? 'hidden' : 'visible';
+    if (!reduce) {
+      wall.style.transform = `translate(${mx * -6}px, ${my * -5 - hp * 18}px)`;
+      note.style.transform = phone ? '' : `translate(${mx * 5}px, ${my * 4}px) scale(${0.965 + 0.035 * e})`;
+    }
+    if (hp > 0.85) check('desk');
+
+    const dr = designs.getBoundingClientRect();
+    const inDesigns = dr.top < innerHeight * 0.5 && dr.bottom > innerHeight * 0.5;
+    if (dr.top <= 1 && dr.bottom >= innerHeight - 1) {
+      const dp = progress(designs);
+      applyTheme(Math.min(THEMES.length - 1, Math.max(0, Math.floor((dp - 0.05) / 0.88 * THEMES.length))));
+      if (dp > 0.97) check('designs');
+    }
+    const fr = features.getBoundingClientRect();
+    if (fr.bottom < innerHeight * 0.9) check('features');
+
+    if (phone) {
+      // Automatisch offen im Hero und bei den Designs; ein Tipp übersteuert das bis zum nächsten Wechsel
+      const auto = hp < 0.6 || inDesigns;
+      if (auto !== lastAuto) { manualOpen = null; lastAuto = auto; }
+      const open = manualOpen ?? auto;
+      if (open !== lastOpen) { setOpen(open); lastOpen = open; }
+    } else if (lastOpen !== null) { setOpen(false); lastOpen = null; lastAuto = null; }
+    requestAnimationFrame(frame);
+  }
+  let lastAuto = null;
+  applyTheme(0, false);
+  updateProgress();
+  requestAnimationFrame(frame);
+
+  /* ---- Version und Größe live von GitHub ---- */
+  fetch('https://api.github.com/repos/NOX2912/sticky-todo/releases/latest')
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(rel => {
+      const zip = (rel.assets || []).find(a => a.name === 'ToDo.zip');
+      $$('[data-version]').forEach(el => el.textContent = String(rel.tag_name || '').replace(/^v/, ''));
+      $$('[data-size]').forEach(el => el.textContent = zip ? (zip.size / 1048576).toLocaleString('de-DE', { maximumFractionDigits: 1 }) + ' MB' : '');
+      if (!zip) $$('[data-size-wrap]').forEach(el => el.hidden = true);
+      if (rel.tag_name) $$('[data-live]').forEach(el => el.hidden = false);
+    })
+    .catch(() => {});
+})();
+</script>
+</body>
+</html>
